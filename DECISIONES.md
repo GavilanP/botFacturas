@@ -3,7 +3,7 @@
 > Documento vivo. Recoge lo que vamos pensando, las opciones barajadas y las decisiones
 > tomadas sobre la evolución del bot. Se actualiza en cada sesión de trabajo.
 >
-> Última actualización: 2026-07-02 (rev. 11)
+> Última actualización: 2026-07-02 (rev. 14)
 
 ---
 
@@ -255,6 +255,70 @@ existente.
 **Stack de arranque recomendado:** mlx-whisper (`large-v3-turbo`) + Ollama (Qwen2.5 7B) +
 rapidfuzz para el mapeo de categorías.
 
+**Ubicación de los modelos (verificado 2026-07-02):**
+- Ollama usa `OLLAMA_MODELS=/Volumes/HDD/ollama-models` → los modelos están en un **disco
+  externo** (`~/.ollama/models` vacío). Disco interno: solo ~25 GB libres.
+- **Regla:** los modelos NUNCA van en la carpeta del proyecto. El código habla con Ollama por
+  `localhost:11434` y pide el modelo por NOMBRE (`qwen2.5:14b`); no le importa la ruta física.
+- Tenerlos en el disco externo es razonable (poco espacio interno), PERO ⚠️ **el disco debe
+  estar montado o la IA falla**. Para el futuro 24/7, el modelo debe estar en almacenamiento
+  siempre disponible del aparato que ejecute el bot.
+- Whisper (mlx-whisper) descarga a `~/.cache/huggingface` (disco INTERNO, ~1,5 GB). Reubicable
+  con `HF_HOME` si hace falta espacio.
+
+**Dónde se implementa el audio en el código (plan):**
+- `src/transcribir.py` (NUEVO): audio bytes → texto (Whisper).
+- `src/interpretar.py` (NUEVO): texto → campos del gasto (Ollama qwen2.5:14b + rapidfuzz).
+  Separar "llamar al modelo" (no testeable) de "validar/mapear campos" (puro → testeable).
+- `src/bot.py`: handler nuevo `filters.VOICE` → transcribir → interpretar → botones ✅/❌ (ya
+  existen) → `_escribir_fila` → SQLite.
+- Config: `AUDIO_ACTIVO=1`, `WHISPER_MODEL`, `OLLAMA_MODEL`, `OLLAMA_HOST` en `.env`.
+- Dependencias nuevas: `mlx-whisper`, cliente `ollama` (pip) → requirements.txt.
+- Primer sub-paso: instalar mlx-whisper y crear transcribir.py; validar transcripción ES antes
+  de seguir.
+
+**Gastos incompletos por audio — DISEÑO PEDIDO POR EL AUTOR (2026-07-02, AÚN NO implementado):**
+
+Comportamiento deseado: si el audio no trae toda la información, **guardar lo que sí hay** y
+responder con un mensaje que liste **exactamente qué falta**; lo que falte se completará después
+por otra vía (edición). Ejemplo del autor: "si falta la fecha, que se guarde todo menos la fecha
+y que el mensaje diga lo que falta".
+
+Cómo implementarlo cuando toque:
+1. **`interpretar.py` ya lo prepara:** la dataclass `Propuesta` lleva `faltan: list[str]` con los
+   campos que el modelo no pudo extraer (devuelve `null`). Esa lista alimenta el mensaje.
+2. **Esquema:** añadir a la tabla `gastos` una columna `estado TEXT NOT NULL DEFAULT 'completo'`
+   (`'incompleto'` si falta algo) y permitir NULL en los campos no obligatorios; migración con
+   `ALTER TABLE`. El importe seguiría siendo obligatorio de facto (sin importe apenas hay gasto),
+   pero guardable como incompleto si el autor lo prefiere.
+3. **Mensaje de vuelta:** tras guardar, el bot responde "✅ Guardado (incompleto). Falta: fecha,
+   categoría…" usando `Propuesta.faltan`.
+4. **Completar después:** un comando `/pendientes` que liste los gastos con `estado='incompleto'`
+   y un flujo de edición con botones (o la futura web local) para rellenar lo que falte.
+5. **Nota sobre la fecha:** hoy la fecha NO se dicta: se pone sola (fecha de envío). Si se quiere
+   poder dictar "ayer" o "el sábado", sería una extensión de `interpretar.py` (extraer fecha
+   relativa) — decisión aparte.
+
+Estado: SOLO documentado. Prioridad actual = pipeline de audio (transcribir + interpretar).
+
+**Paso 3 (audio) — AVANCE 2026-07-02:**
+- Instalado: `mlx-whisper 0.4.3`, `ollama 0.6.2` (cliente Python), `rapidfuzz 3.14.5` → en
+  requirements.txt.
+- Creados `src/transcribir.py` (voz→texto) y `src/interpretar.py` (texto→campos, con
+  `Propuesta.faltan` preparando los gastos incompletos). 11 tests nuevos de la parte pura
+  (29 en total, todos pasan).
+- ✅ **Whisper VERIFICADO en el M1**: audio de prueba en español ("cuarenta y siete euros con
+  treinta céntimos en pinturas...") → transcrito como «47,30 euros en pinturas para el local de
+  Castores, categoría material de unidad». Los números en palabras los convierte la propia
+  transcripción. Modelo large-v3-turbo descargado (~1,6 GB, disco interno).
+- ⚠️ **Hallazgo:** `OLLAMA_MODELS` en `~/.zshrc` apunta a `/Volumes/HDD/ollama-models`, que YA NO
+  EXISTE (el disco hoy se llama "Disco"). Los modelos reales están en
+  `/Volumes/Disco/ollama-models/models`, enlazados desde `~/.ollama/models` (symlink). **Arreglo
+  pendiente (lo hace el autor):** editar la línea 1 de `~/.zshrc` →
+  `export OLLAMA_MODELS=/Volumes/Disco/ollama-models/models` (o borrarla: el symlink ya cubre).
+- Pendiente: probar `interpretar.py` end-to-end con qwen2.5:14b (necesita `ollama serve`
+  corriendo y el disco "Disco" montado) y cablear el handler de voz en bot.py.
+
 **Foto de ticket → gasto: se puede, pero es lo difícil.**
 - Los modelos de visión pequeños fallan sobre todo en el dato crítico: el importe.
 - Dos caminos: (a) OCR en el dispositivo (macOS tiene OCR nativo muy bueno vía Vision) +
@@ -305,7 +369,18 @@ local (`sqlite3`, ya viene con Python).
 - Mejoras de robustez rápidas del tema 1: `asyncio.to_thread` en las llamadas a Google,
   aviso de errores al admin.
 
-**Después:** Paso 2 (web local) → Paso 3 (IA audio) → Paso 4 (IA visión). Ver roadmap abajo.
+**Después:** Paso 2 (web local) → Paso 3 (IA audio). ~~Paso 4 (IA visión)~~ DESCARTADO por el
+autor (2026-07-02): la IA de visión (que un modelo *lea* la foto) queda para futuras versiones,
+fuera de los planes actuales.
+
+**Guardar fotos de facturas (sin IA que las lea):** la distinción importa — descartar la IA de
+visión NO impide adjuntar la foto como archivo. **SQLite ya admite fotos** (columna `BLOB`); no
+hace falta otro motor. Dos enfoques:
+- **A. BLOB en la DB:** los bytes dentro de la tabla. Todo en un fichero (un solo backup, portable).
+  Contra: el `.db` crece con fotos grandes.
+- **B. Foto en disco + ruta en la DB** (⭐ recomendado por sencillez): imagen en `data/facturas/`,
+  en la DB solo la ruta. DB pequeña y rápida; contra: respaldar dos cosas.
+- Decisión pendiente si/cuando se reactive el adjuntar facturas (hoy `FACTURAS_ACTIVAS=0`).
 
 ---
 
@@ -318,7 +393,8 @@ Orden pensado para aprender sin frustrarse: de lo más fundamental/fácil a lo m
 2. **Web local propia** (FastAPI + SQLite + frontend sencillo) para ver balances. Aprender
    desarrollo web, login, despliegue. Aquí se deja de necesitar Sheets para visibilidad.
 3. **IA de audio** (Whisper → parseo → flujo de confirmación existente). Primera victoria de IA.
-4. **IA de visión** (OCR/VLM local → extraer campos → confirmar). La más dura, al final.
+4. ~~**IA de visión**~~ — DESCARTADA por el autor (2026-07-02), a futuras versiones. Nota:
+   *guardar* la foto como adjunto (sin IA) sigue siendo opción; ver tema 5.
 
 Nota: las mejoras de robustez del tema 1 (asyncio.to_thread, aviso al admin) se pueden ir
 colando en cualquier momento; el paso 1 (SQLite) ya resuelve la fiabilidad del tema 1.2.

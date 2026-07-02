@@ -232,7 +232,7 @@ async def recibir_concepto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def recibir_importe(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    importe = validacion._parsear_importe(update.message.text)
+    importe = validacion.parsear_importe(update.message.text)
     if importe is None:
         await update.message.reply_text("Importe no válido. Escríbelo otra vez (p. ej. 47,30):")
         return IMPORTE

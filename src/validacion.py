@@ -38,7 +38,7 @@ class ErrorValidacion:
     mensaje: str    # texto listo para enviar al usuario
 
 
-def _parsear_importe(texto: str) -> float | None:
+def parsear_importe(texto: str) -> float | None:
     """Convierte '47,30', '47.30', '1.234,50' o '12,50 €' a float (>0). None si no es válido."""
     t = texto.strip().replace("€", "").replace(" ", "")
     if not t:
@@ -53,6 +53,10 @@ def _parsear_importe(texto: str) -> float | None:
     except ValueError:
         return None
     return round(valor, 2) if valor > 0 else None
+
+
+# Alias retrocompatible con el nombre antiguo (era "privada" pero se usaba desde fuera).
+_parsear_importe = parsear_importe
 
 
 def parsear(caption: str | None, catalogos) -> "Factura | ErrorValidacion":

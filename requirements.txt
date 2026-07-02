@@ -1,14 +1,17 @@
-# Dependencias del bot de facturas (v1)
+# Dependencias del bot de facturas
 python-telegram-bot>=21
-google-api-python-client>=2
-google-auth>=2
-google-auth-oauthlib>=1   # solo necesario si GOOGLE_AUTH_MODE=oauth
 python-dotenv>=1
 PyYAML>=6
 
+# IA de audio local (Paso 3): voz -> texto -> campos del gasto
+mlx-whisper>=0.4     # transcripción Whisper en Apple Silicon (requiere ffmpeg: brew install ffmpeg)
+ollama>=0.4          # cliente del servidor Ollama local (qwen2.5:14b)
+rapidfuzz>=3         # casar sección/categoría dictadas con el catálogo
+
+# Google (LEGACY: solo para la versión Sheets -commit 512a889- o si FACTURAS_ACTIVAS=1)
+google-api-python-client>=2
+google-auth>=2
+google-auth-oauthlib>=1   # solo necesario si GOOGLE_AUTH_MODE=oauth
+
 # Desarrollo / pruebas
 pytest>=8
-
-# Fase 2 (NO se usan todavía):
-# rapidfuzz>=3
-# anthropic>=0.40
