@@ -1,0 +1,15 @@
+[Unit]
+Description=Bot Facturas (bot-facturas)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/bot-facturas
+EnvironmentFile=/home/ubuntu/bot-facturas/.env
+ExecStart=/home/ubuntu/bot-facturas/.venv/bin/python /home/ubuntu/bot-facturas/src/bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

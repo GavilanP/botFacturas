@@ -1,0 +1,14 @@
+# Dependencias del bot de facturas (v1)
+python-telegram-bot>=21
+google-api-python-client>=2
+google-auth>=2
+google-auth-oauthlib>=1   # solo necesario si GOOGLE_AUTH_MODE=oauth
+python-dotenv>=1
+PyYAML>=6
+
+# Desarrollo / pruebas
+pytest>=8
+
+# Fase 2 (NO se usan todavía):
+# rapidfuzz>=3
+# anthropic>=0.40

@@ -1,0 +1,10 @@
+# Lista blanca: chat_id de Telegram -> nombre que se escribirá en la columna "Quién".
+#
+# Copia este fichero a "autorizados.yaml" y rellena con los datos reales.
+# Para obtener el chat_id de cada scouter: que escriba /chatid al bot y copia el
+# número que responde. Añádelo aquí manualmente.
+autorizados:
+  - chat_id: 123456789
+    nombre: "PENDIENTE Nombre Apellido"
+  - chat_id: 987654321
+    nombre: "PENDIENTE Nombre Apellido"

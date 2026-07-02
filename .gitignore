@@ -1,0 +1,31 @@
+# --- Secretos y credenciales: NUNCA subir ---
+.env
+config/*.json
+token.json
+
+# --- Configuración con datos reales (usar los *.example como plantilla) ---
+config/autorizados.yaml
+config/secciones.yaml
+
+# --- Datos reales (facturas, hojas de cálculo, descargas) ---
+*.xlsx
+*.xls
+*.csv
+!google-sheets/catalogo.csv   # catálogo de categorías (no es dato personal)
+facturas/
+descargas/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# --- Sistema ---
+.DS_Store
+Thumbs.db
+
+# --- Ajustes locales de herramientas ---
+.claude/

@@ -1,0 +1,20 @@
+# Catálogo de secciones -> carpeta de Drive donde se suben sus facturas.
+#
+# Copia este fichero a "secciones.yaml" y rellena cada carpeta_drive_id con el
+# ID real de la carpeta de Drive (la parte final de la URL de la carpeta:
+# https://drive.google.com/drive/folders/<ESTE_ID>).
+secciones:
+  - codigo: "Castores"
+    carpeta_drive_id: "PENDIENTE_ID_CARPETA"
+  - codigo: "Manada"
+    carpeta_drive_id: "PENDIENTE_ID_CARPETA"
+  - codigo: "Tropa"
+    carpeta_drive_id: "PENDIENTE_ID_CARPETA"
+  - codigo: "Escultas"
+    carpeta_drive_id: "PENDIENTE_ID_CARPETA"
+  - codigo: "Clan"
+    carpeta_drive_id: "PENDIENTE_ID_CARPETA"
+  - codigo: "Grupo"
+    carpeta_drive_id: "PENDIENTE_ID_CARPETA"
+  - codigo: "Campamento"
+    carpeta_drive_id: "PENDIENTE_ID_CARPETA"
