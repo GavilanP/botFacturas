@@ -22,8 +22,8 @@ from telegram.ext import (
     filters,
 )
 
+import db
 import drive
-import sheets
 import validacion
 from config import cargar_config, validar_config
 from validacion import ErrorValidacion, Factura
@@ -69,10 +69,10 @@ async def cmd_chatid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 def _escribir_fila(context, cfg, factura, quien, enlace, momento) -> None:
     if cfg.dry_run:
-        log.info("[DRY_RUN] Fila que se añadiría: %s", sheets.construir_fila(factura, quien, enlace, momento))
+        log.info("[DRY_RUN] Gasto que se guardaría: %s", db.registro_de(factura, quien, enlace, momento))
     else:
-        fila = sheets.construir_fila(factura, quien, enlace, momento)
-        sheets.append_fila(context.bot_data["sheets"], cfg.sheets_id, cfg.sheets_range, fila)
+        gasto_id = db.guardar_gasto(cfg.db_path, factura, quien, enlace, momento)
+        log.info("Gasto #%s guardado en la base de datos", gasto_id)
 
 
 def _resumen(factura, quien) -> str:
@@ -291,15 +291,18 @@ def main() -> None:
     if not cfg.telegram_token:
         raise SystemExit("No se puede arrancar sin TELEGRAM_BOT_TOKEN. Revisa el fichero .env")
 
+    if not cfg.dry_run:
+        db.init_db(cfg.db_path)
+        log.info("Base de datos lista en %s", cfg.db_path)
+
     app = Application.builder().token(cfg.telegram_token).build()
     app.bot_data["cfg"] = cfg
 
-    if not cfg.dry_run:
+    # Solo la subida de facturas a Drive (Fase 2) necesita credenciales de Google.
+    if not cfg.dry_run and cfg.facturas_activas:
         from autenticacion import credenciales
         creds = credenciales(cfg.auth_mode, cfg.credentials_path)
-        app.bot_data["sheets"] = sheets.construir_servicio(creds)
-        if cfg.facturas_activas:
-            app.bot_data["drive"] = drive.construir_servicio(creds)
+        app.bot_data["drive"] = drive.construir_servicio(creds)
 
     conv = ConversationHandler(
         entry_points=[CommandHandler("gasto", iniciar)],

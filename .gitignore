@@ -7,13 +7,17 @@ token.json
 config/autorizados.yaml
 config/secciones.yaml
 
-# --- Datos reales (facturas, hojas de cálculo, descargas) ---
+# --- Datos reales (facturas, hojas de cálculo, descargas, base de datos) ---
 *.xlsx
 *.xls
 *.csv
 !google-sheets/catalogo.csv   # catálogo de categorías (no es dato personal)
 facturas/
 descargas/
+data/
+*.db
+*.sqlite
+*.sqlite3
 
 # --- Python ---
 __pycache__/

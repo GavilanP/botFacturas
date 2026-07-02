@@ -3,7 +3,7 @@
 > Documento vivo. Recoge lo que vamos pensando, las opciones barajadas y las decisiones
 > tomadas sobre la evolución del bot. Se actualiza en cada sesión de trabajo.
 >
-> Última actualización: 2026-07-02 (rev. 4)
+> Última actualización: 2026-07-02 (rev. 11)
 
 ---
 
@@ -97,6 +97,20 @@ a Sheets. Ventajas:
 
 Coste estimado: ~60-80 líneas. Sustituiría al `pendientes.jsonl` propuesto en el punto 2.
 
+**¿Qué motor de base de datos? (decidido 2026-07-02)**
+
+| Motor | Qué es | Veredicto |
+|---|---|---|
+| **SQLite** ⭐ | Un fichero, sin servidor, incluida en Python. La DB más desplegada del mundo. Open source (dominio público). SQL estándar + ACID. | **EMPEZAR AQUÍ.** Cero admin, perfecta para aprender y para el volumen scout. No es un "juguete": es un destino legítimo. |
+| **PostgreSQL** | La DB open source cliente-servidor más potente/moderna. | **Graduación futura.** Cuando exista el servidor/web (pasos 2-4) y haga falta concurrencia robusta o funciones avanzadas. |
+| MariaDB/MySQL | Cliente-servidor clásica. | Válida, pero Postgres es mejor inversión de aprendizaje. |
+| DuckDB | Muy moderna, pero **analítica** (OLAP). | No encaja: es para analizar millones de filas, no para registrar gastos uno a uno. |
+
+- **Regla:** no elegir Postgres "por si acaso" ahora — administrar un servidor cuando basta un
+  fichero es complejidad prematura. Escribir **SQL estándar** en SQLite hace fácil la migración
+  a Postgres el día que el proyecto lo pida de verdad.
+- El SQL aprendido con SQLite transfiere casi 1:1 a Postgres.
+
 ---
 
 ### 3. ¿Web con GitHub para dar visibilidad?
@@ -187,6 +201,60 @@ Dos tareas muy distintas, una bastante más fácil que la otra:
 - Nota de voz → transcripción → modelo pequeño local (Llama 3.2, Qwen2.5 vía Ollama) extrae
   los campos (sección/categoría/concepto/importe) con prompt de salida JSON.
 
+**Modelos concretos para AUDIO en Mac M1 16 GB (prioridad del autor).**
+
+El pipeline de audio tiene DOS componentes:
+
+*1) Voz → texto (Speech-to-Text): Whisper.*
+| Herramienta | Notas |
+|---|---|
+| **mlx-whisper** | Optimizado para Apple Silicon (framework MLX). El más rápido en tu M1. `pip install`. Recomendado. |
+| **whisper.cpp** | Port en C++ con Metal. Muy eficiente, sin Python. Buena alternativa. |
+| **faster-whisper** | Multiplataforma; en Mac tira sobre todo de CPU pero va bien. |
+
+Modelo Whisper a usar: **`large-v3-turbo`** (excelente y rápido, ~1,5 GB) o **`medium`**. Para
+español, de `small` hacia arriba va bien; `large-v3`/turbo es el mejor. Footprint trivial en 16 GB.
+
+*2) Texto → campos (parseo a JSON): LLM pequeño local vía Ollama.*
+| Modelo | Tamaño (Q4) | Notas |
+|---|---|---|
+| **Qwen2.5 7B** | ~4,7 GB | Sweet spot. Muy bueno en JSON/instrucciones y español. Recomendado. |
+| **Qwen2.5 3B** / **Llama 3.2 3B** | ~2 GB | Más ágil; suficiente para esta tarea acotada. |
+| **Llama 3.1 8B** | ~5 GB | Buen generalista, español sólido. |
+
+**Ollama** = forma más fácil de correr el LLM (`ollama pull qwen2.5:7b`). Whisper (~1,5 GB) + LLM
+7B (~5 GB) a la vez ≈ 8-9 GB → **caben de sobra en 16 GB**. Si va justo, usar LLM 3B.
+
+**Modelos Ollama YA INSTALADOS (verificado 2026-07-02, Ollama v0.17.7):**
+`deepseek-coder:6.7b`, `llama3:8b`, `phi3:latest`, **`qwen2.5:14b`**, `qwen2.5-coder:7b`.
+- **DECISIÓN: usar `qwen2.5:14b` para el parseo texto→campos.** Ya instalado y superior a la 7B
+  recomendada. En 16 GB ocupa ~9 GB al cargar; como Whisper y el LLM corren **en secuencia** (no
+  a la vez), no compiten por memoria. No hay que descargar nada para el LLM.
+- Suplentes: `llama3:8b` (generalista), `phi3` (ligero, español más flojo). Los `*-coder` son
+  para programar, no para esta tarea.
+- **Falta instalar Whisper** (no es de Ollama; Ollama solo hace texto): `mlx-whisper` vía pip o
+  `whisper.cpp`, + `ffmpeg` (`brew install ffmpeg`). Se hará en el paso 3, no ahora.
+- Nota: el servidor de Ollama no estaba arrancado; se arranca con la app o `ollama serve` cuando
+  toque.
+
+*Alternativa sin LLM (arranque más simple):* Whisper + `rapidfuzz` (mapear categoría) + regex
+para el importe. Menos flexible con frases libres, pero cero dependencia de un LLM. El LLM maneja
+mucho mejor "me gasté 47 y pico en...".
+
+**Gotchas del audio:**
+- Las notas de voz de Telegram vienen en OGG/Opus → hace falta **ffmpeg** para convertir
+  (Whisper lo usa por debajo).
+- Los **números** son lo delicado: Whisper suele transcribir "cuarenta y siete con treinta" en
+  palabras; el LLM las convierte a 47,30 pero puede fallar → el **paso de confirmación** lo
+  cubre.
+
+**Sub-plan del paso 3 (audio):** (a) Whisper transcribiendo notas de voz en español; (b) parseo
+del texto → campos (empezar simple o directo con LLM); (c) enchufar al flujo de confirmación
+existente.
+
+**Stack de arranque recomendado:** mlx-whisper (`large-v3-turbo`) + Ollama (Qwen2.5 7B) +
+rapidfuzz para el mapeo de categorías.
+
 **Foto de ticket → gasto: se puede, pero es lo difícil.**
 - Los modelos de visión pequeños fallan sobre todo en el dato crítico: el importe.
 - Dos caminos: (a) OCR en el dispositivo (macOS tiene OCR nativo muy bueno vía Vision) +
@@ -216,6 +284,28 @@ Dos tareas muy distintas, una bastante más fácil que la otra:
   sin modelo, muy buena calidad de texto → buena opción para tickets.
 - Pendiente aún: ¿algún aparato siempre encendido (Raspberry/mini-PC) o de momento solo el Mac?
   → Decisión inicial: **todo en el Mac** y ya se separará si hace falta.
+
+---
+
+## Próximos pasos inmediatos (resumen)
+
+**Ahora mismo → Paso 1: SQLite como fuente de verdad.** El bot escribe cada gasto en una DB
+local (`sqlite3`, ya viene con Python).
+- Punto de enganche ideal: la función **`_escribir_fila`** en `bot.py` es el ÚNICO sitio donde
+  ambos flujos (texto y botones) persisten el gasto. Añadir ahí la escritura en DB cubre los dos.
+- Subtareas: crear `src/db.py` (conexión + tabla `gastos` + función `guardar_gasto`); llamarla
+  desde `_escribir_fila`; respetar `DRY_RUN`.
+- Decisión a tomar: ¿DB **como único** destino, o **DB + Sheets como espejo** durante la
+  transición? (recomendado: DB + espejo al principio, para no perder la interfaz de tesorería
+  de golpe).
+- Opcional: migrar las filas que ya existan en Sheets a la DB.
+
+**En paralelo / cuando apetezca (tareas sueltas):**
+- Crear repo **privado en GitHub** + `push` (backup online + control de tareas).
+- Mejoras de robustez rápidas del tema 1: `asyncio.to_thread` en las llamadas a Google,
+  aviso de errores al admin.
+
+**Después:** Paso 2 (web local) → Paso 3 (IA audio) → Paso 4 (IA visión). Ver roadmap abajo.
 
 ---
 
@@ -294,11 +384,37 @@ para que un mal día no se lleve las cuentas.*
   de Claude, por la prioridad de privacidad.
 - (2026-07-02) Patrón de IA: **propone y el usuario confirma**, reutilizando el flujo de botones
   existente.
+- (2026-07-02) **DB-only:** el bot guardará SOLO en SQLite, sin espejo a Sheets. El autor
+  quiere centrarse exclusivamente en la base de datos en esta fase. Consecuencia: el bot ya no
+  necesita credenciales de Google ni `GOOGLE_SHEETS_ID` para funcionar (Drive solo si
+  `FACTURAS_ACTIVAS=1`).
+- (2026-07-02) Motor: **SQLite** ahora, PostgreSQL como graduación futura. Escribir SQL estándar.
+- (2026-07-02) **Paso 0 HECHO: repositorio git inicializado** (rama `main`, primer commit
+  `512a889`). Verificado que los secretos (`.env`, clave JSON de cuenta de servicio,
+  `autorizados.yaml`) quedan fuera. Añadido `.claude/` al `.gitignore`. Falta crear el repo
+  remoto en GitHub y hacer `push` (lo hará el autor con su cuenta).
+
+## Paso 1 (SQLite) — IMPLEMENTADO (2026-07-02)
+
+- `src/db.py` (nuevo): `init_db`, `guardar_gasto`, `registro_de`. Conexión por operación con
+  `contextlib.closing` (cierre garantizado) + `with con` (commit transaccional).
+- `src/bot.py`: `_escribir_fila` guarda en SQLite; `init_db` al arrancar (salvo DRY_RUN);
+  se quitó el servicio de Sheets; ya no importa `sheets`.
+- `src/config.py`: nuevo `db_path` (env `DB_PATH`, def. `data/gastos.db`); `validar_config` ya no
+  exige Google en modo solo-DB.
+- Tests: `tests/test_db.py` (guardar/recuperar, ids, idempotencia) y `tests/test_config.py`
+  (solo-DB no exige Google). **18 tests pasan.**
+- `.gitignore`: ignora `data/`, `*.db`, `*.sqlite*`. `.env.example`: documenta `DB_PATH`, marca
+  Sheets como legacy.
+- **Revisión ultracode (workflow adversarial, 14 agentes):** 5 hallazgos reales corregidos
+  (cierre de conexión SQLite, doble llamada en config, init_db en DRY_RUN, falta de test solo-DB,
+  `.env.example` desactualizado). 3 descartados como falsos positivos.
 
 ## Decisiones pendientes
 
 - ¿Habrá aparato siempre encendido o todo vive en el Mac? (arranque: todo en el Mac).
-- Arrancar el roadmap: **git init** (paso 0) y luego **paso 1 (SQLite como fuente de verdad)**.
+- ~~git init (paso 0)~~ ✅ hecho. Siguiente: crear repo remoto en GitHub + `push`, y luego
+  **paso 1 (SQLite como fuente de verdad)**.
 - Decidir si Sheets se mantiene como espejo temporal o se retira ya.
 - ¿Repo de GitHub privado? (recomendado). El push lo hace el autor cuando quiera.
 - Ir colando las mejoras de robustez del tema 1 cuando toque.

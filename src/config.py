@@ -24,6 +24,7 @@ class Config:
     auth_mode: str
     credentials_path: Path
     drive_raiz_id: str
+    db_path: Path
     dry_run: bool
     facturas_activas: bool
     catalogos: Catalogos
@@ -60,6 +61,11 @@ def cargar_config() -> Config:
     if not cred_path.is_absolute():
         cred_path = BASE_DIR / cred_path
 
+    db_raw = os.getenv("DB_PATH", "data/gastos.db").strip()
+    db_path = Path(db_raw)
+    if not db_path.is_absolute():
+        db_path = BASE_DIR / db_path
+
     secciones_path = _ruta_real_o_example("secciones.yaml", "secciones.example.yaml")
     categorias_path = CONFIG_DIR / "categorias.yaml"
     autorizados_path = _ruta_real_o_example("autorizados.yaml", "autorizados.example.yaml")
@@ -71,6 +77,7 @@ def cargar_config() -> Config:
         auth_mode=os.getenv("GOOGLE_AUTH_MODE", "service_account").strip(),
         credentials_path=cred_path,
         drive_raiz_id=os.getenv("DRIVE_CARPETA_RAIZ_ID", "").strip(),
+        db_path=db_path,
         dry_run=_a_bool(os.getenv("DRY_RUN", "0")),
         facturas_activas=_a_bool(os.getenv("FACTURAS_ACTIVAS", "0")),
         catalogos=Catalogos.desde_ficheros(secciones_path, categorias_path),
@@ -85,15 +92,16 @@ def validar_config(cfg: Config) -> list[str]:
         problemas.append("Falta TELEGRAM_BOT_TOKEN en .env")
     if not cfg.autorizados:
         problemas.append("No hay usuarios autorizados (config/autorizados.yaml)")
-    if not cfg.dry_run:
-        if not cfg.sheets_id:
-            problemas.append("Falta GOOGLE_SHEETS_ID en .env")
+    # Modo solo-DB: la persistencia es SQLite; no hacen falta credenciales de Google.
+    # Las credenciales y carpetas de Drive solo se necesitan al subir facturas (Fase 2).
+    if not cfg.dry_run and cfg.facturas_activas:
         if not cfg.credentials_path.exists():
             problemas.append(f"No se encuentra el fichero de credenciales: {cfg.credentials_path}")
-        # Las carpetas de Drive solo hacen falta cuando se suben facturas (Fase 2)
-        if cfg.facturas_activas:
-            sin_carpeta = [s for s in cfg.catalogos.codigos_secciones
-                           if not cfg.catalogos.carpeta_drive(s) or cfg.catalogos.carpeta_drive(s).startswith("PENDIENTE")]
-            if sin_carpeta:
-                problemas.append("Hay secciones sin carpeta_drive_id en secciones.yaml: " + ", ".join(sin_carpeta))
+        sin_carpeta = []
+        for s in cfg.catalogos.codigos_secciones:
+            carpeta = cfg.catalogos.carpeta_drive(s)
+            if not carpeta or carpeta.startswith("PENDIENTE"):
+                sin_carpeta.append(s)
+        if sin_carpeta:
+            problemas.append("Hay secciones sin carpeta_drive_id en secciones.yaml: " + ", ".join(sin_carpeta))
     return problemas
