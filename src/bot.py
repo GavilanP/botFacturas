@@ -8,6 +8,7 @@ Fase 1 (FACTURAS_ACTIVAS=0): solo gastos. Fase 2 (=1): además foto/PDF a Drive 
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -26,6 +27,8 @@ import db
 import drive
 import validacion
 from config import cargar_config, validar_config
+from interpretar import interpretar
+from transcribir import transcribir_bytes
 from validacion import ErrorValidacion, Factura
 
 logging.basicConfig(
@@ -46,11 +49,26 @@ AYUDA = (
     "Usa /chatid para ver tu identificador."
 )
 
+GUIA_AUDIO = (
+    "\n\n🎙️ También puedes mandar una nota de voz diciendo estos 4 datos en una frase:\n"
+    "• Sección: p. ej. «Castores» o «Grupo» (también Manada, Tropa, Escultas, Clan, Campamento).\n"
+    "• Categoría: p. ej. «material de unidad», «excursión de unidad» (en unidades) o «fotocopias», "
+    "«seguros EdM» (en Grupo).\n"
+    "• Concepto: qué es, en pocas palabras. P. ej. «pinturas para el local», «entradas al museo».\n"
+    "• Importe: la cantidad en euros. P. ej. «47,30 euros» o «doce euros con cincuenta».\n\n"
+    "Ejemplos de audio completo:\n"
+    "«Castores, material de unidad, pinturas para el local, cuarenta y siete con treinta euros.»\n"
+    "«Me he gastado doce euros con cincuenta en fotocopias para el Grupo.»\n\n"
+    "Te enseño lo que he entendido antes de guardar nada, así que si algo sale mal puedes cancelarlo."
+)
+
 
 # ====================== Comandos básicos ======================
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(AYUDA)
+    cfg = context.bot_data["cfg"]
+    texto = AYUDA + (GUIA_AUDIO if cfg.audio_activo else "")
+    await update.message.reply_text(texto)
 
 
 async def cmd_chatid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -151,6 +169,102 @@ def _nombre_archivo(factura, momento, ext) -> str:
     seccion = factura.seccion.lower().replace(" ", "-")
     sello = momento.strftime("%Y%m%d_%H%M%S")
     return f"{sello}_{seccion}_{factura.importe:.2f}.{ext}"
+
+
+# ====================== Atajo: gasto por nota de voz ======================
+
+def _resumen_parcial(propuesta) -> str:
+    partes = []
+    if propuesta.seccion:
+        partes.append(f"• Sección: {propuesta.seccion}")
+    if propuesta.categoria:
+        partes.append(f"• Categoría: {propuesta.categoria}")
+    if propuesta.concepto:
+        partes.append(f"• Concepto: {propuesta.concepto}")
+    if propuesta.importe is not None:
+        partes.append(f"• Importe: {propuesta.importe:.2f} €")
+    return "\n".join(partes)
+
+
+async def manejar_audio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    cfg = context.bot_data["cfg"]
+    mensaje = update.message
+    chat_id = update.effective_chat.id
+
+    if not cfg.esta_autorizado(chat_id):
+        log.info("Audio ignorado de chat_id no autorizado: %s", chat_id)
+        return
+    if not cfg.audio_activo:
+        await mensaje.reply_text("El registro por nota de voz no está activado todavía. Usa /gasto.")
+        return
+
+    aviso = await mensaje.reply_text("🎙️ Escuchando…")
+
+    try:
+        archivo_tg = await context.bot.get_file(mensaje.voice.file_id)
+        contenido = bytes(await archivo_tg.download_as_bytearray())
+        texto = await asyncio.to_thread(transcribir_bytes, contenido, "ogg", cfg.whisper_model)
+    except Exception:  # noqa: BLE001
+        log.exception("Error transcribiendo audio de %s", cfg.nombre_de(chat_id))
+        await aviso.edit_text("No he podido transcribir el audio. Inténtalo de nuevo.")
+        return
+
+    try:
+        propuesta = await asyncio.to_thread(interpretar, texto, cfg.catalogos, cfg.ollama_model, cfg.ollama_host)
+    except Exception:  # noqa: BLE001
+        log.exception("Error interpretando audio de %s", cfg.nombre_de(chat_id))
+        await aviso.edit_text(f"He entendido: «{texto}»\nPero no he podido interpretar los datos. Usa /gasto.")
+        return
+
+    if not propuesta.completa:
+        faltan = ", ".join(propuesta.faltan)
+        detalle = _resumen_parcial(propuesta)
+        extra = f"\n{detalle}\n\n" if detalle else "\n\n"
+        await aviso.edit_text(
+            f"🎙️ He entendido: «{texto}»{extra}⚠️ Falta: {faltan}.\nUsa /gasto para completarlo."
+        )
+        return
+
+    factura = Factura(
+        seccion=propuesta.seccion, categoria=propuesta.categoria,
+        concepto=propuesta.concepto, importe=propuesta.importe,
+    )
+    context.user_data["audio_factura"] = factura
+    quien = cfg.nombre_de(chat_id)
+    avisos = "\n".join(f"• {a}" for a in propuesta.avisos)
+    extra_avisos = f"\n\n{avisos}" if avisos else ""
+    teclado = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Confirmar", callback_data="audio|ok"),
+        InlineKeyboardButton("❌ Cancelar", callback_data="audio|no"),
+    ]])
+    await aviso.edit_text(
+        f"🎙️ He entendido: «{texto}»\n\nRevisa el gasto:\n" + _resumen(factura, quien) + extra_avisos,
+        reply_markup=teclado,
+    )
+
+
+async def confirmar_audio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    await q.answer()
+    if q.data == "audio|no":
+        context.user_data.pop("audio_factura", None)
+        await q.edit_message_text("❌ Cancelado.")
+        return
+
+    cfg = context.bot_data["cfg"]
+    factura = context.user_data.pop("audio_factura", None)
+    if factura is None:
+        await q.edit_message_text("Esta propuesta ha caducado. Manda la nota de voz otra vez.")
+        return
+
+    quien = cfg.nombre_de(update.effective_chat.id)
+    try:
+        _escribir_fila(context, cfg, factura, quien, "", datetime.now())
+    except Exception:  # noqa: BLE001
+        log.exception("Error registrando gasto (audio) de %s", quien)
+        await q.edit_message_text("Ha habido un error al registrar el gasto. Inténtalo más tarde.")
+        return
+    await q.edit_message_text("✅ Gasto registrado.\n" + _resumen(factura, quien))
 
 
 # ====================== Flujo guiado con botones ======================
@@ -322,6 +436,8 @@ def main() -> None:
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("chatid", cmd_chatid))
     app.add_handler(conv)
+    app.add_handler(MessageHandler(filters.VOICE, manejar_audio))
+    app.add_handler(CallbackQueryHandler(confirmar_audio, pattern=r"^audio\|"))
     app.add_handler(
         MessageHandler((filters.TEXT | filters.PHOTO | filters.Document.ALL) & ~filters.COMMAND, manejar_gasto)
     )

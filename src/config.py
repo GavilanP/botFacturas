@@ -8,6 +8,8 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
+import interpretar
+import transcribir
 from catalogos import Catalogos
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,6 +31,10 @@ class Config:
     facturas_activas: bool
     catalogos: Catalogos
     autorizados: dict[int, str]  # chat_id -> nombre
+    audio_activo: bool = False
+    whisper_model: str = transcribir.MODELO_POR_DEFECTO
+    ollama_model: str = interpretar.MODELO_POR_DEFECTO
+    ollama_host: str = interpretar.HOST_POR_DEFECTO
 
     def nombre_de(self, chat_id: int) -> str | None:
         return self.autorizados.get(chat_id)
@@ -82,6 +88,10 @@ def cargar_config() -> Config:
         facturas_activas=_a_bool(os.getenv("FACTURAS_ACTIVAS", "0")),
         catalogos=Catalogos.desde_ficheros(secciones_path, categorias_path),
         autorizados=_cargar_autorizados(autorizados_path),
+        audio_activo=_a_bool(os.getenv("AUDIO_ACTIVO", "0")),
+        whisper_model=os.getenv("WHISPER_MODEL", transcribir.MODELO_POR_DEFECTO).strip(),
+        ollama_model=os.getenv("OLLAMA_MODEL", interpretar.MODELO_POR_DEFECTO).strip(),
+        ollama_host=os.getenv("OLLAMA_HOST", interpretar.HOST_POR_DEFECTO).strip(),
     )
 
 

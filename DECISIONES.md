@@ -3,7 +3,7 @@
 > Documento vivo. Recoge lo que vamos pensando, las opciones barajadas y las decisiones
 > tomadas sobre la evolución del bot. Se actualiza en cada sesión de trabajo.
 >
-> Última actualización: 2026-07-02 (rev. 14)
+> Última actualización: 2026-07-03 (rev. 15)
 
 ---
 
@@ -319,6 +319,27 @@ Estado: SOLO documentado. Prioridad actual = pipeline de audio (transcribir + in
 - Pendiente: probar `interpretar.py` end-to-end con qwen2.5:14b (necesita `ollama serve`
   corriendo y el disco "Disco" montado) y cablear el handler de voz en bot.py.
 
+**Paso 3 (audio) — HANDLER CABLEADO Y VERIFICADO END-TO-END (2026-07-03):**
+- `src/bot.py`: nuevo `manejar_audio` (handler `filters.VOICE`) → descarga la nota de voz →
+  `transcribir_bytes` (Whisper) → `interpretar` (Ollama qwen2.5:14b) → muestra la propuesta con
+  botones ✅/❌ → `confirmar_audio` guarda en SQLite vía `_escribir_fila`. Las llamadas a Whisper
+  y Ollama van con `asyncio.to_thread` para no bloquear el bot. Si la propuesta está incompleta,
+  hoy responde con lo entendido + qué falta y remite a `/gasto` (guardado incompleto: aún NO).
+- `/start` ahora incluye una guía de qué decir en el audio (sección, categoría, concepto,
+  importe) con ejemplos, solo si `AUDIO_ACTIVO=1`.
+- `src/config.py`: nuevos `audio_activo` (env `AUDIO_ACTIVO`), `whisper_model`, `ollama_model`,
+  `ollama_host`. `.env.example` documenta las cuatro.
+- ✅ **VERIFICADO en Telegram real**: nota de voz «Castores, material de unidad, pinturas para el
+  local, cuarenta y siete con treinta» → propuesta correcta → confirmada → `Gasto #2` guardado en
+  la DB (Castores / Material de unidad / pinturas para el local / 47,30 €). 29 tests siguen
+  pasando.
+- ⚠️ **Observación de rendimiento**: la PRIMERA transcripción tardó ~3 min (carga inicial de
+  `large-v3-turbo` en memoria + transcribir). Pendiente medir el 2º audio con el modelo ya
+  cargado; si sigue lento, valorar modelo Whisper más pequeño (`medium`/`small`) o mejorar el
+  mensaje "🎙️ Escuchando…". Durante la espera el único feedback es ese aviso.
+- Pendiente aún: gastos incompletos (guardar lo que hay + listar lo que falta), tests del flujo
+  de audio de bot.py, y el arreglo de `OLLAMA_MODELS` en `~/.zshrc` (lo hace el autor).
+
 **Foto de ticket → gasto: se puede, pero es lo difícil.**
 - Los modelos de visión pequeños fallan sobre todo en el dato crítico: el importe.
 - Dos caminos: (a) OCR en el dispositivo (macOS tiene OCR nativo muy bueno vía Vision) +
@@ -388,11 +409,14 @@ hace falta otro motor. Dos enfoques:
 
 Orden pensado para aprender sin frustrarse: de lo más fundamental/fácil a lo más difícil.
 
-1. **SQLite como fuente de verdad.** El bot escribe en DB local. Primer paso hacia la
-   independencia + aprender bases de datos. (Sheets como espejo opcional al principio.)
+1. ✅ **SQLite como fuente de verdad.** HECHO (2026-07-02). El bot escribe en DB local. Primer
+   paso hacia la independencia + aprender bases de datos.
 2. **Web local propia** (FastAPI + SQLite + frontend sencillo) para ver balances. Aprender
    desarrollo web, login, despliegue. Aquí se deja de necesitar Sheets para visibilidad.
-3. **IA de audio** (Whisper → parseo → flujo de confirmación existente). Primera victoria de IA.
+   ← **SIGUIENTE PASO MAYOR.**
+3. ✅ **IA de audio** (Whisper → parseo → flujo de confirmación existente). HECHO y verificado
+   end-to-end (2026-07-03). Primera victoria de IA. Pulido pendiente: rendimiento y gastos
+   incompletos.
 4. ~~**IA de visión**~~ — DESCARTADA por el autor (2026-07-02), a futuras versiones. Nota:
    *guardar* la foto como adjunto (sin IA) sigue siendo opción; ver tema 5.
 
