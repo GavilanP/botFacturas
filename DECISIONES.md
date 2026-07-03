@@ -3,7 +3,7 @@
 > Documento vivo. Recoge lo que vamos pensando, las opciones barajadas y las decisiones
 > tomadas sobre la evolución del bot. Se actualiza en cada sesión de trabajo.
 >
-> Última actualización: 2026-07-03 (rev. 15)
+> Última actualización: 2026-07-03 (rev. 16)
 
 ---
 
@@ -339,6 +339,36 @@ Estado: SOLO documentado. Prioridad actual = pipeline de audio (transcribir + in
   mensaje "🎙️ Escuchando…". Durante la espera el único feedback es ese aviso.
 - Pendiente aún: gastos incompletos (guardar lo que hay + listar lo que falta), tests del flujo
   de audio de bot.py, y el arreglo de `OLLAMA_MODELS` en `~/.zshrc` (lo hace el autor).
+
+**Paso 3 (audio) — PULIDO 2026-07-03:**
+- **Feedback de progreso:** `manejar_audio` edita el mensaje por fases («Transcribiendo…» →
+  «Interpretando…») en vez de un único «Escuchando…».
+- **Gastos incompletos IMPLEMENTADO** (lo pedido por el autor): si el audio no trae todo pero
+  SÍ el importe (obligatorio, es el dato mínimo de un gasto), se guarda como `incompleto` con los
+  campos que faltan a `""`, tras confirmar con botón «✅ Guardar (incompleto)». Mensaje lista qué
+  falta. Si falta el importe, no se guarda y se pide repetir. Nuevo comando **`/pendientes`** que
+  lista los incompletos. Edición para completarlos: aún NO (futuro).
+  - DB: nueva columna `estado TEXT NOT NULL DEFAULT 'completo'` con migración idempotente
+    (`_migrar` + `ALTER TABLE ADD COLUMN`, se probó sobre la DB real sin perder filas). NO hizo
+    falta reconstruir la tabla ni columnas NULL: como el importe es obligatorio, los campos que
+    faltan se guardan como `""` (cumplen el `NOT NULL` de texto).
+  - `db.py`: `guardar_gasto`/`registro_de` con parámetro `estado`; nueva `listar_pendientes`.
+  - Tests: 7 nuevos (estado por defecto, guardar incompleto, listar pendientes, migración de DB
+    antigua, `_resumen_parcial`). **36 tests pasan.**
+- **Rendimiento — CAUSA Y ARREGLO:** medido en Telegram, la lentitud (~3 min) del primer audio
+  NO era Whisper (que ya cargado tarda ~5 s), sino la **carga en frío del LLM `qwen2.5:14b`**
+  (~9,7 GB) en Ollama. **DECISIÓN: bajar a `qwen2.5:7b`** (~4,7 GB). Interpretación con carga en
+  frío: **8,5 s** (vs 3 min 13 s del 14b), extracción correcta. Cambiado el modelo por defecto en
+  `interpretar.py` y `.env`.
+- **Almacén de Ollama movido al disco INTERNO** (a petición del autor, para no depender del disco
+  externo): `~/.ollama/models` era un symlink a `/Volumes/Disco/ollama-models/models`; se
+  reemplazó por carpeta interna real y se hizo `ollama pull qwen2.5:7b` (4,4 GB; ~16 GB internos
+  libres). Los 23 GB de modelos viejos siguen en el disco externo (recuperables remontando +
+  rehaciendo el symlink). La app de Ollama ignora `~/.zshrc`; se comentó allí la línea muerta
+  `OLLAMA_MODELS=/Volumes/HDD/...`. **Regla mantenida:** los modelos NO van en el repo; Ollama los
+  sirve por nombre vía localhost.
+- **Doc nueva `MODELOS-IA.md`:** guía reproducible (requisitos, instalar Whisper/LLM, cómo cambiar
+  la ruta del almacén interno/externo, config `.env`, verificación, rendimiento).
 
 **Foto de ticket → gasto: se puede, pero es lo difícil.**
 - Los modelos de visión pequeños fallan sobre todo en el dato crítico: el importe.

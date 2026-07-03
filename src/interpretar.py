@@ -1,7 +1,7 @@
 """Interpretación del texto transcrito: sacar los campos del gasto con un LLM local.
 
 Diseño en dos mitades para poder testear sin IA:
-- _pedir_al_modelo(): habla con Ollama (qwen2.5:14b). Necesita el servidor corriendo
+- _pedir_al_modelo(): habla con Ollama (qwen2.5:7b). Necesita el servidor corriendo
   y el disco de modelos montado; NO se testea offline.
 - extraer_json() y casar_con_catalogos(): funciones puras que validan y mapean lo
   que devuelve el modelo contra los catálogos reales. Estas SÍ se testean.
@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from util import normalizar
 from validacion import parsear_importe
 
-MODELO_POR_DEFECTO = "qwen2.5:14b"
+MODELO_POR_DEFECTO = "qwen2.5:7b"
 HOST_POR_DEFECTO = "http://localhost:11434"
 
 # Por debajo de esta puntuación (0-100) no damos por buena una coincidencia difusa.
