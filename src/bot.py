@@ -59,7 +59,9 @@ GUIA_AUDIO = (
     "Ejemplos de audio completo:\n"
     "«Castores, material de unidad, pinturas para el local, cuarenta y siete con treinta euros.»\n"
     "«Me he gastado doce euros con cincuenta en fotocopias para el Grupo.»\n\n"
-    "Te enseño lo que he entendido antes de guardar nada, así que si algo sale mal puedes cancelarlo."
+    "Te enseño lo que he entendido antes de guardar nada, así que si algo sale mal puedes cancelarlo.\n"
+    "Si falta algún dato (menos el importe, que es obligatorio) puedo guardarlo como incompleto; "
+    "los revisas luego con /pendientes."
 )
 
 
@@ -83,14 +85,46 @@ async def cmd_chatid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         )
 
 
+async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    cfg = context.bot_data["cfg"]
+    chat_id = update.effective_chat.id
+    if not cfg.esta_autorizado(chat_id):
+        return
+    if cfg.dry_run:
+        await update.message.reply_text("En modo DRY_RUN no se guardan gastos, así que no hay pendientes.")
+        return
+
+    pendientes = db.listar_pendientes(cfg.db_path)
+    if not pendientes:
+        await update.message.reply_text("No hay gastos incompletos pendientes. 🎉")
+        return
+
+    lineas = ["🗂️ Gastos incompletos (faltan datos):", ""]
+    for g in pendientes:
+        campos = []
+        if g["seccion"]:
+            campos.append(g["seccion"])
+        if g["categoria"]:
+            campos.append(g["categoria"])
+        if g["concepto"]:
+            campos.append(g["concepto"])
+        descripcion = " · ".join(campos) if campos else "(sin datos)"
+        faltan = [n for n, v in (("sección", g["seccion"]), ("categoría", g["categoria"]),
+                                 ("concepto", g["concepto"])) if not v]
+        cola = f" — falta: {', '.join(faltan)}" if faltan else ""
+        lineas.append(f"#{g['id']} · {g['importe']:.2f} € · {descripcion} ({g['quien']}, {g['fecha']}){cola}")
+    await update.message.reply_text("\n".join(lineas))
+
+
 # ====================== Helpers compartidos ======================
 
-def _escribir_fila(context, cfg, factura, quien, enlace, momento) -> None:
+def _escribir_fila(context, cfg, factura, quien, enlace, momento, estado="completo") -> None:
     if cfg.dry_run:
-        log.info("[DRY_RUN] Gasto que se guardaría: %s", db.registro_de(factura, quien, enlace, momento))
+        log.info("[DRY_RUN] Gasto que se guardaría (%s): %s", estado,
+                 db.registro_de(factura, quien, enlace, momento, estado))
     else:
-        gasto_id = db.guardar_gasto(cfg.db_path, factura, quien, enlace, momento)
-        log.info("Gasto #%s guardado en la base de datos", gasto_id)
+        gasto_id = db.guardar_gasto(cfg.db_path, factura, quien, enlace, momento, estado)
+        log.info("Gasto #%s guardado en la base de datos (%s)", gasto_id, estado)
 
 
 def _resumen(factura, quien) -> str:
@@ -198,7 +232,7 @@ async def manejar_audio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await mensaje.reply_text("El registro por nota de voz no está activado todavía. Usa /gasto.")
         return
 
-    aviso = await mensaje.reply_text("🎙️ Escuchando…")
+    aviso = await mensaje.reply_text("🎙️ Nota de voz recibida. Transcribiendo… (puede tardar un poco)")
 
     try:
         archivo_tg = await context.bot.get_file(mensaje.voice.file_id)
@@ -210,61 +244,97 @@ async def manejar_audio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     try:
+        await aviso.edit_text(f"📝 He entendido: «{texto}»\n\n🤔 Interpretando los datos del gasto…")
+    except Exception:  # noqa: BLE001
+        pass  # editar el aviso es opcional; si falla, seguimos igual
+
+    try:
         propuesta = await asyncio.to_thread(interpretar, texto, cfg.catalogos, cfg.ollama_model, cfg.ollama_host)
     except Exception:  # noqa: BLE001
         log.exception("Error interpretando audio de %s", cfg.nombre_de(chat_id))
         await aviso.edit_text(f"He entendido: «{texto}»\nPero no he podido interpretar los datos. Usa /gasto.")
         return
 
-    if not propuesta.completa:
-        faltan = ", ".join(propuesta.faltan)
+    quien = cfg.nombre_de(chat_id)
+
+    # Sin importe no se puede guardar: es el dato mínimo de un gasto.
+    if propuesta.importe is None:
         detalle = _resumen_parcial(propuesta)
-        extra = f"\n{detalle}\n\n" if detalle else "\n\n"
+        extra = f"\n{detalle}\n" if detalle else "\n"
         await aviso.edit_text(
-            f"🎙️ He entendido: «{texto}»{extra}⚠️ Falta: {faltan}.\nUsa /gasto para completarlo."
+            f"📝 He entendido: «{texto}»{extra}\n"
+            "⚠️ No puedo guardarlo sin el importe. Repite la nota de voz diciendo la cantidad, "
+            "o usa /gasto."
         )
         return
 
     factura = Factura(
-        seccion=propuesta.seccion, categoria=propuesta.categoria,
-        concepto=propuesta.concepto, importe=propuesta.importe,
+        seccion=propuesta.seccion or "", categoria=propuesta.categoria or "",
+        concepto=propuesta.concepto or "", importe=propuesta.importe,
     )
+    estado = "completo" if propuesta.completa else "incompleto"
     context.user_data["audio_factura"] = factura
-    quien = cfg.nombre_de(chat_id)
+    context.user_data["audio_estado"] = estado
+    context.user_data["audio_faltan"] = propuesta.faltan
+
     avisos = "\n".join(f"• {a}" for a in propuesta.avisos)
     extra_avisos = f"\n\n{avisos}" if avisos else ""
+
+    if estado == "incompleto":
+        faltan = ", ".join(propuesta.faltan)
+        etiqueta_ok = "✅ Guardar (incompleto)"
+        cuerpo = (
+            f"📝 He entendido: «{texto}»\n\nRevisa el gasto (incompleto):\n"
+            + _resumen_parcial(factura) + f"\n• Por: {quien}"
+            + f"\n\n⚠️ Falta: {faltan}" + extra_avisos
+        )
+    else:
+        etiqueta_ok = "✅ Confirmar"
+        cuerpo = (
+            f"📝 He entendido: «{texto}»\n\nRevisa el gasto:\n"
+            + _resumen(factura, quien) + extra_avisos
+        )
+
     teclado = InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ Confirmar", callback_data="audio|ok"),
+        InlineKeyboardButton(etiqueta_ok, callback_data="audio|ok"),
         InlineKeyboardButton("❌ Cancelar", callback_data="audio|no"),
     ]])
-    await aviso.edit_text(
-        f"🎙️ He entendido: «{texto}»\n\nRevisa el gasto:\n" + _resumen(factura, quien) + extra_avisos,
-        reply_markup=teclado,
-    )
+    await aviso.edit_text(cuerpo, reply_markup=teclado)
 
 
 async def confirmar_audio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     await q.answer()
     if q.data == "audio|no":
-        context.user_data.pop("audio_factura", None)
+        for clave in ("audio_factura", "audio_estado", "audio_faltan"):
+            context.user_data.pop(clave, None)
         await q.edit_message_text("❌ Cancelado.")
         return
 
     cfg = context.bot_data["cfg"]
     factura = context.user_data.pop("audio_factura", None)
+    estado = context.user_data.pop("audio_estado", "completo")
+    faltan = context.user_data.pop("audio_faltan", [])
     if factura is None:
         await q.edit_message_text("Esta propuesta ha caducado. Manda la nota de voz otra vez.")
         return
 
     quien = cfg.nombre_de(update.effective_chat.id)
     try:
-        _escribir_fila(context, cfg, factura, quien, "", datetime.now())
+        _escribir_fila(context, cfg, factura, quien, "", datetime.now(), estado=estado)
     except Exception:  # noqa: BLE001
         log.exception("Error registrando gasto (audio) de %s", quien)
         await q.edit_message_text("Ha habido un error al registrar el gasto. Inténtalo más tarde.")
         return
-    await q.edit_message_text("✅ Gasto registrado.\n" + _resumen(factura, quien))
+
+    if estado == "incompleto":
+        texto_faltan = ", ".join(faltan) if faltan else "algún dato"
+        await q.edit_message_text(
+            "✅ Guardado (incompleto).\n" + _resumen_parcial(factura) + f"\n• Por: {quien}"
+            + f"\n\n⚠️ Falta: {texto_faltan}. Complétalo luego; míralo con /pendientes."
+        )
+    else:
+        await q.edit_message_text("✅ Gasto registrado.\n" + _resumen(factura, quien))
 
 
 # ====================== Flujo guiado con botones ======================
@@ -435,6 +505,7 @@ def main() -> None:
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("chatid", cmd_chatid))
+    app.add_handler(CommandHandler("pendientes", cmd_pendientes))
     app.add_handler(conv)
     app.add_handler(MessageHandler(filters.VOICE, manejar_audio))
     app.add_handler(CallbackQueryHandler(confirmar_audio, pattern=r"^audio\|"))
