@@ -3,7 +3,7 @@
 > Documento vivo. Recoge lo que vamos pensando, las opciones barajadas y las decisiones
 > tomadas sobre la evolución del bot. Se actualiza en cada sesión de trabajo.
 >
-> Última actualización: 2026-07-03 (rev. 17)
+> Última actualización: 2026-07-03 (rev. 18)
 
 ---
 
@@ -386,6 +386,16 @@ Estado: SOLO documentado. Prioridad actual = pipeline de audio (transcribir + in
   Ya no salen avisos difusos porque devuelve el nombre canónico (casa exacto). Tiempos ~5-6 s.
 - Test nuevo de `construir_prompt` (incluye el catálogo). 37 tests pasan. El fuzzy de
   `casar_con_catalogos` se mantiene como red de seguridad para erratas menores.
+
+**Documentación al día 2026-07-03:**
+- Los tres docs de usuario (`README.md`, `GUIA-puesta-en-marcha.md`, `MANUAL.md`) estaban desfasados: describían
+  la arquitectura antigua (bot → Google Sheets, «la IA es Fase 2 con API de Claude»). Reescritos a la realidad
+  actual: **solo-DB**, tres vías de registro (botones/texto/voz), IA **local**, comandos (`/pendientes`), y arranque
+  sin Google. El material de Google Sheets/Drive se conserva **marcado como legacy/opcional** (el código sigue para
+  `FACTURAS_ACTIVAS=1`). Cross-referencias a `MODELOS-IA.md` verificadas.
+- **Auditoría técnica y concepto de la web** (Paso 2) elaborados como artefactos visuales para el autor (no
+  versionados): resumen de hallazgos priorizados y wireframe de la web de tesorería con chat IA y voz desde el
+  navegador. La recomendación estructural clave: extraer un paquete `core/` compartido antes de construir la web.
 
 **Foto de ticket → gasto: se puede, pero es lo difícil.**
 - Los modelos de visión pequeños fallan sobre todo en el dato crítico: el importe.

@@ -3,25 +3,22 @@
 Guía completa para arrancar el bot **en tu ordenador personal**, paso a paso. No hace falta saber programar:
 sigue los pasos en orden.
 
-> El bot (Fase 1) registra gastos: el scouter manda un mensaje de texto
-> `SECCIÓN | CATEGORÍA | CONCEPTO | IMPORTE` y el bot lo escribe en la hoja de Google. (Las **facturas a Drive**
-> son la Fase 2, más adelante.)
+> **Modo solo-DB (por defecto).** El bot registra gastos —con **botones**, por **texto** o por **nota de voz**— y
+> los guarda en una base de datos **SQLite** en tu ordenador. **No hace falta Google** para esto. Subir la
+> foto/PDF a Google Drive es opcional (Fase 2, paso 11), y la **IA de audio** también es opcional (paso 12).
 
 ---
 
 ## 1. Qué necesitas antes de empezar
-- El fichero **`bot-facturas.zip`** (todo el proyecto).
-- El fichero **`credenciales.json`** (la clave de la cuenta de servicio que descargaste de Google Cloud).
-  ⚠️ **No viene dentro del zip** (es secreto) → tienes que llevarlo aparte.
+- El fichero **`bot-facturas.zip`** (todo el proyecto) — o el repositorio clonado.
 - **Python 3.10 o superior** instalado.
-- Tu **hoja de Google** ya compartida con la cuenta de servicio como *Editor* (ya hecho ✅).
 - Una cuenta de **Telegram**.
+- (Solo si quieres la Fase 2 de facturas a Drive) el **`credenciales.json`** de Google. Para el modo solo-DB
+  **no hace falta**.
 
 ## 2. Descomprimir el proyecto
 1. Copia **`bot-facturas.zip`** a tu PC (p. ej. a `Documentos`) y **descomprímelo** (clic derecho → *Extraer todo*).
    Te quedará una carpeta **`bot-facturas`**.
-2. Copia también el **`credenciales.json`** (estaba en *Descargas*). Pásalo de forma **segura** (USB, tu Drive
-   personal…), **no** por chat/email público — da acceso de escritura a la hoja.
    - (Si ves carpetas `__pycache__` dentro, son caché de Python: puedes borrarlas, dan igual.)
 
 ## 3. Instalar Python (si no lo tienes)
@@ -30,22 +27,18 @@ sigue los pasos en orden.
 3. Comprueba: abre una terminal y escribe `python --version` → debe mostrar 3.10 o más.
    (Si dice que no reconoce `python`, prueba con `py --version`; si tampoco, reinstala marcando "Add to PATH".)
 
-## 4. Colocar credenciales y configuración
-1. Mete **`credenciales.json`** dentro de la carpeta **`bot-facturas\config\`**.
-2. En `bot-facturas\`, **haz una copia de `.env.example` y renómbrala a `.env`**. Ábrela con el Bloc de notas y
-   rellénala:
+## 4. Configuración
+1. En `bot-facturas\`, **haz una copia de `.env.example` y renómbrala a `.env`**. Ábrela con el Bloc de notas.
+   Para el modo solo-DB basta con esto (el token lo creas en el paso 5):
    ```
    TELEGRAM_BOT_TOKEN=          (lo creas en el paso 5)
-   GOOGLE_SHEETS_ID=            (el ID de tu hoja: en la URL .../d/ESTE_ID/edit)
-   GOOGLE_CREDENTIALS_PATH=config/credenciales.json
-   GOOGLE_SHEETS_RANGE=Tabla de Gastos!A:I
-   GOOGLE_AUTH_MODE=service_account
+   DB_PATH=data/gastos.db
    FACTURAS_ACTIVAS=0
    DRY_RUN=0
    ```
-   ⚠️ Tu hoja debe tener una pestaña llamada exactamente **`Tabla de Gastos`**. Si tu pestaña de datos se llama
-   distinto, pon ese nombre en `GOOGLE_SHEETS_RANGE` (p. ej. `MiPestaña!A:I`).
-3. Haz una copia de **`config\autorizados.example.yaml`** y renómbrala a **`config\autorizados.yaml`** (la
+   El bot creará solo el fichero `data/gastos.db` la primera vez. (Los valores de Google que veas en el
+   `.env.example` solo hacen falta para la Fase 2 del paso 11; puedes dejarlos en blanco.)
+2. Haz una copia de **`config\autorizados.example.yaml`** y renómbrala a **`config\autorizados.yaml`** (la
    rellenarás en el paso 7).
 
 ## 5. Crear el bot de Telegram
@@ -84,7 +77,7 @@ Si todo va bien, verás: `Bot arrancado (facturas=False, dry_run=False). Esperan
    (`.venv\Scripts\python src\bot.py`) para que lea el cambio.
 
 ## 8. Probar
-Tienes dos formas:
+Tienes tres formas:
 - **Con botones (recomendado):** manda **`/gasto`** al bot y ve eligiendo (tipo → unidad → grupo → categoría); luego escribe el concepto y el importe, y pulsa **✅ Confirmar**.
 - **Por texto:** un mensaje con cada dato en una línea:
   ```
@@ -93,8 +86,10 @@ Tienes dos formas:
   Cena fin de ronda
   47,30
   ```
-En ambos casos debe responder **"✅ Gasto registrado"** y aparecer una **fila nueva** en la hoja (y actualizarse los balances). 🎉
-Borra esa fila de prueba cuando quieras.
+- **Por voz** (si activaste el audio en el paso 12): manda una nota de voz diciendo sección, categoría, concepto e importe; el bot te enseña una propuesta y la confirmas con ✅.
+
+En los tres casos debe responder **"✅ Gasto registrado"**. El gasto queda en la base de datos `data/gastos.db`. 🎉
+Para verlo, puedes usar cualquier visor de SQLite, o el comando `/pendientes` (que lista los gastos guardados como incompletos).
 
 ## 9. Uso del día a día
 - **Arrancar**: abre la terminal en `bot-facturas` y ejecuta `.venv\Scripts\python src\bot.py`. Mientras la terminal
@@ -113,19 +108,27 @@ Borra esa fila de prueba cuando quieras.
 - **"Falta TELEGRAM_BOT_TOKEN"** → revisa el `.env`.
 - **El bot no responde / te ignora** → tu `chat_id` no está en `autorizados.yaml` (manda `/chatid` y añádelo, y
   reinicia el bot).
-- **Dice "error al registrar el gasto" o no aparece la fila** → comprueba: ¿compartiste la hoja con la cuenta de
-  servicio (*Editor*)? ¿`GOOGLE_SHEETS_ID` correcto? ¿la pestaña se llama `Tabla de Gastos` (o ajustaste el rango)?
-- **"No se encuentra el fichero de credenciales"** → revisa `GOOGLE_CREDENTIALS_PATH` y que el `.json` esté en
-  `config\`.
-- **`#N/A` en los balances** → hay una celda con error en las columnas A/C/D de `Tabla de Gastos` (Ctrl+F → `#N/A`).
+- **`Conflict: terminated by other getUpdates`** → tienes **dos instancias** del bot corriendo a la vez. Cierra
+  todas (Ctrl+C en cada terminal) y arranca solo una.
+- **Mandas una nota de voz y no pasa nada** → el audio no está activado (`AUDIO_ACTIVO=0`) o falta algo de la IA;
+  revisa el paso 12 y [`MODELOS-IA.md`](MODELOS-IA.md).
 - (Opcional) Probar la lógica sin Telegram: `.venv\Scripts\python -m pytest` dentro de `bot-facturas`.
 
-## 11. Qué falta / siguientes pasos
-- **Fase 2 — Facturas a Drive**: poner `FACTURAS_ACTIVAS=1`, habilitar la **Drive API**, crear una carpeta por
-  sección y poner sus IDs en `config\secciones.yaml`. El bot pedirá la foto/PDF y la subirá.
-- **Producción**: pasar la cuenta de servicio a la **cuenta del grupo** (o que el administrador del Workspace active
-  Cloud) y usar un bot/cuenta de Telegram de la asociación. Solo cambian 2-3 valores del `.env`.
-- **Presupuestos automáticos**: ver `google-sheets\RELLENAR-PRESUPUESTO-CON-IA.md`.
+## 11. Opcional — Facturas a Google Drive (Fase 2)
+Si además de registrar el gasto quieres **subir la foto/PDF** de la factura a Drive:
+1. Consigue un **`credenciales.json`** de Google (cuenta de servicio recomendada) y mételo en `config\`.
+2. En `.env`: `FACTURAS_ACTIVAS=1`, `GOOGLE_AUTH_MODE=service_account`,
+   `GOOGLE_CREDENTIALS_PATH=config/credenciales.json`.
+3. Habilita la **Drive API**, crea una carpeta por sección y pon sus IDs en `config\secciones.yaml`.
+
+El bot pedirá la foto/PDF junto al texto y la subirá a la carpeta de la sección. (Sin esto, en modo solo-DB, el
+gasto se guarda igual en la base de datos.)
+
+## 12. Opcional — Registrar gastos por voz (IA local)
+El bot puede transcribir e interpretar **notas de voz** con IA que corre **en tu ordenador** (el audio no sale de
+la máquina). Necesita `ffmpeg`, `mlx-whisper` y **Ollama** con un modelo instalado, y activar `AUDIO_ACTIVO=1`.
+
+👉 **Instalación y configuración paso a paso: [`MODELOS-IA.md`](MODELOS-IA.md).**
 
 > Para entender o cambiar cualquier parte del sistema: **`MANUAL.md`**. Para replicarlo otro año/grupo:
 > **`REPLICAR-CON-IA.md`**.

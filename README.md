@@ -1,116 +1,140 @@
-# Bot de facturas — Grupo Scout Buen Consejo
+# Bot de gastos — Grupo Scout Buen Consejo
 
-Bot de Telegram para que cualquier scouter autorizado registre una factura (foto o PDF) con una
-descripción. El bot **sube la factura a Google Drive** (carpeta según la sección) y **añade una fila a
-Google Sheets**, y confirma al scouter. No clasifica ni interpreta nada: solo valida, reparte y confirma.
+Bot de Telegram para que cualquier scouter autorizado registre un **gasto** en segundos. Hay
+**tres formas** de hacerlo: guiado con **botones**, por **texto**, o dictando una **nota de voz**
+que una **IA local** interpreta. Cada gasto se guarda en una base de datos **SQLite** local
+(la fuente de verdad del sistema).
 
-> **Versión 1.** La clasificación asistida (fuzzy/IA), el despliegue 24/7 en Raspberry Pi y las copias de
-> seguridad son fases futuras. El código está organizado para añadirlas sin reescribir lo existente.
-
----
-
-## Formato del mensaje
-
-Envía la factura como **foto o documento**, con este texto en el pie (caption):
-
-```
-SECCIÓN | CATEGORÍA | CONCEPTO | IMPORTE
-```
-
-Ejemplo:
-
-```
-Castores | Material de unidad | Pinturas para el local | 47,30
-```
-
-- **SECCIÓN**: una de `Castores, Manada, Tropa, Escultas, Clan, Grupo, Campamento`. Determina la carpeta de Drive.
-- **CATEGORÍA**: depende de la sección (ver más abajo).
-- **CONCEPTO**: descripción libre breve (va a la columna *Comentarios*).
-- **IMPORTE**: cantidad en euros (admite coma o punto: `47,30` o `47.30`).
-
-El campo *Quién* no se escribe: lo deduce el bot del `chat_id` de quien envía. La comparación de sección y
-categoría **ignora mayúsculas y acentos**.
-
-### Categorías por sección
-
-- **Unidades** (Castores, Manada, Tropa, Escultas, Clan): `Material de unidad`, `Excursión de unidad`.
-- **Grupo**: las categorías de la "Tabla de Gastos" (Intendencia, Formación, Pañoletas, …).
-- **Campamento**: las 46 partidas del presupuesto de campamento (Autobuses, Makro, Toldos, …).
-
-El catálogo completo está en [`config/categorias.yaml`](config/categorias.yaml).
+> **Modo actual: solo base de datos (solo-DB).** El bot **no necesita Google** para funcionar:
+> guarda directamente en SQLite. Subir la foto/PDF de la factura a Google Drive es opcional
+> (Fase 2, `FACTURAS_ACTIVAS=1`). La versión antigua que escribía en Google Sheets se conserva
+> como referencia, pero ya no es el camino por defecto (ver [`MANUAL.md`](MANUAL.md)).
 
 ---
 
-## Qué se guarda en Google Sheets
+## Cómo se registra un gasto
 
-Por cada factura válida se añade una fila. Orden de columnas (alineado a la "Tabla de Gastos" + 2 columnas nuevas **al final**, para no romper fórmulas existentes):
+**1. Con botones (recomendado en el móvil)** — manda **`/gasto`** y el bot te guía:
+tipo → unidad → (grupo) → categoría → concepto → importe → **✅ Confirmar**.
 
-| A: UNIDAD | B: Trimestre | C: Categoría | D: Importe | E: Factura | F: Fecha | G: Comentarios | H: Enlace factura | I: Quién |
-|---|---|---|---|---|---|---|---|---|
+**2. Por texto** — un mensaje con cada dato en una línea (o separado por `|`):
 
-- **E "Factura"** (tipo de justificante: TRANSFERENCIA/Sí…) lo deja **en blanco** el bot; lo rellena tesorería si quiere.
-- **H "Enlace factura"**: URL del archivo subido a Drive.
-- **I "Quién"**: autor, deducido del `chat_id`.
-- **Trimestre**: se calcula desde la fecha (Sep–Dic = 1º, Ene–Mar = 2º, Abr–Ago = 3º; ajustable en `src/util.py`).
+```
+Castores
+Material de unidad
+Pinturas para el local
+47,30
+```
 
-Fila de cabeceras recomendada para crear la hoja:
-`UNIDAD | Trimestre | Categoría | Importe | Factura | Fecha | Comentarios | Enlace factura | Quién`
-(el rango por defecto es `Tabla de Gastos!A:I`, configurable en `.env`).
+**3. Por nota de voz** (si el audio está activado) — mándale un audio diciendo la sección, la
+categoría, el concepto y el importe. La IA local lo transcribe, extrae los campos y te enseña una
+**propuesta** que confirmas con ✅/❌ antes de guardar nada.
+
+```
+«Castores, material de unidad, pinturas para el local, cuarenta y siete con treinta euros»
+```
+
+En los tres casos la comparación de sección y categoría **ignora mayúsculas y acentos**, y el
+campo *Quién* no se escribe: lo deduce el bot del `chat_id` de quien envía.
 
 ---
 
-## Puesta en marcha
+## Comandos
+
+| Comando | Qué hace |
+|---|---|
+| `/gasto` | Registrar un gasto guiado con botones. |
+| `/pendientes` | Listar los gastos **incompletos** (los que se guardaron por voz sin todos los datos). |
+| `/chatid` | Ver tu identificador de Telegram (para darte de alta). |
+| `/start` | Ayuda y, si el audio está activo, guía de qué decir en la nota de voz. |
+| `/cancel` | Cancelar el flujo de botones a medias. |
+
+---
+
+## Dónde se guardan los datos
+
+Todo va a un fichero **SQLite** (`data/gastos.db` por defecto, configurable con `DB_PATH`).
+Tabla `gastos`, una fila por gasto:
+
+| Campo | Contenido |
+|---|---|
+| `fecha` / `trimestre` | Fecha de registro y trimestre scout (calculado). |
+| `seccion` / `categoria` / `concepto` / `importe` | Los datos del gasto. |
+| `quien` | Autor (deducido del `chat_id`). |
+| `enlace` | URL de la factura en Drive (vacío salvo Fase 2). |
+| `estado` | `completo` o `incompleto` (voz sin todos los datos). |
+| `creado_en` | Marca de tiempo del registro. |
+
+**Gastos incompletos:** si una nota de voz no trae todo pero sí el **importe** (obligatorio), se
+guarda como `incompleto` con lo que falte en blanco; luego lo revisas con `/pendientes`. Sin
+importe no se guarda.
+
+---
+
+## Puesta en marcha rápida (solo-DB)
+
+Para el arranque detallado paso a paso (Windows incluido), ver
+[`GUIA-puesta-en-marcha.md`](GUIA-puesta-en-marcha.md).
 
 ### 0. Requisitos
-- Python 3.10 o superior.
+- Python 3.10 o superior. (La IA de audio es aparte — ver más abajo.)
 
 ### 1. Crear el bot de Telegram
-Habla con [@BotFather](https://t.me/BotFather), crea un bot y copia el **token** → `TELEGRAM_BOT_TOKEN`.
+Habla con [@BotFather](https://t.me/BotFather), crea un bot y copia el **token**.
 
-### 2. Google Cloud + credenciales
-1. Crea (o reutiliza) un proyecto en Google Cloud y **habilita las APIs de Drive y Sheets**.
-2. **Recomendado (Google Workspace, p. ej. `@buenconsejo95.com`): cuenta de servicio.**
-   - Crea una **cuenta de servicio** y descarga su **clave JSON** → guárdala en `config/` y apunta
-     `GOOGLE_CREDENTIALS_PATH` a ella. `GOOGLE_AUTH_MODE=service_account`.
-   - Crea una **Unidad compartida (Shared Drive)** para las facturas y, dentro, una carpeta por sección.
-     Añade el email de la cuenta de servicio como **Administrador de contenido** de la Unidad compartida.
-   - **Comparte la hoja de Google Sheets** con el email de la cuenta de servicio (rol *Editor*).
-3. **Alternativa (Gmail gratuito): OAuth.** `GOOGLE_AUTH_MODE=oauth` y `GOOGLE_CREDENTIALS_PATH` apuntando al
-   `client_secret*.json` de tipo *App de escritorio*. La primera ejecución abrirá el navegador y generará
-   `config/token.json`.
-
-### 3. Carpetas y hoja
-- Crea una carpeta de Drive por sección y anota su **ID** (parte final de la URL de la carpeta).
-- Crea la hoja de Google Sheets con la fila de cabeceras y anota su **ID**.
-
-### 4. Configuración
+### 2. Configuración
 ```bash
 cp .env.example .env
 cp config/secciones.example.yaml config/secciones.yaml
 cp config/autorizados.example.yaml config/autorizados.yaml
 ```
-- Rellena `.env` (token, `GOOGLE_SHEETS_ID`, ruta de credenciales).
-- Rellena `config/secciones.yaml` con el ID de carpeta de cada sección.
-- Rellena `config/autorizados.yaml` con los `chat_id` y nombres (ver "Dar de alta usuarios").
+En `.env` basta con el token para el modo solo-DB:
+```dotenv
+TELEGRAM_BOT_TOKEN=123456:ABC-...
+DB_PATH=data/gastos.db
+FACTURAS_ACTIVAS=0
+DRY_RUN=0
+```
 
-### 5. Instalar dependencias
+### 3. Instalar y arrancar
 ```bash
 python -m venv .venv
-# Windows:  .venv\Scripts\activate
-# Linux/Mac: source .venv/bin/activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-### 6. Arrancar
-```bash
 python src/bot.py
 ```
+Si todo va bien: `Bot arrancado (facturas=False, dry_run=False). Esperando mensajes…`
+
+---
+
+## IA de audio (opcional)
+
+El registro por nota de voz usa **Whisper** (voz→texto) y **Ollama** (texto→campos), todo **en
+local**: el audio no sale de la máquina. Se activa con `AUDIO_ACTIVO=1` en `.env` y requiere
+`ffmpeg`, `mlx-whisper` y el servidor de Ollama con el modelo instalado.
+
+👉 **Guía completa de instalación y configuración: [`MODELOS-IA.md`](MODELOS-IA.md)** (qué
+modelos, cómo instalarlos, dónde se guardan y cómo cambiar la ruta).
+
+---
+
+## Facturas a Google Drive (opcional, Fase 2)
+
+Con `FACTURAS_ACTIVAS=1` el bot, además de guardar el gasto, pide la **foto/PDF** y la sube a
+Drive (una carpeta por sección). Esto **sí** necesita credenciales de Google:
+
+- `GOOGLE_AUTH_MODE=service_account` (recomendado en Workspace) u `oauth` (Gmail).
+- `GOOGLE_CREDENTIALS_PATH` apuntando a la clave, y el ID de carpeta de cada sección en
+  `config/secciones.yaml`.
+
+Detalles en [`GUIA-puesta-en-marcha.md`](GUIA-puesta-en-marcha.md) (paso 11).
 
 ---
 
 ## Dar de alta usuarios
 
-Cada scouter envía **`/chatid`** al bot; este responde su número. Cópialo a `config/autorizados.yaml`:
+Cada scouter envía **`/chatid`** al bot; este responde su número. Cópialo a
+`config/autorizados.yaml`:
 
 ```yaml
 autorizados:
@@ -118,28 +142,27 @@ autorizados:
     nombre: "Nombre Apellido"
 ```
 
-Quien no esté en la lista es ignorado en silencio.
+Quien no esté en la lista es ignorado en silencio. (Tras editar el YAML, reinicia el bot.)
 
 ---
 
 ## Pruebas
 
-Pruebas offline (no tocan Telegram ni Google):
 ```bash
-pytest
+pytest            # pruebas offline: no tocan Telegram, Google ni la IA
 ```
 
-Probar el flujo de Telegram **sin** Google: pon `DRY_RUN=1` en `.env` y arranca el bot; simulará la subida a
-Drive y la escritura en Sheets (solo deja traza en el log).
+Probar el flujo de Telegram **sin** guardar nada real: `DRY_RUN=1` en `.env` (registra en el log
+lo que se guardaría).
 
 ---
 
 ## Privacidad (importante)
-- Cuentas de Telegram y Google **de la asociación**, nunca personales. Activa 2FA en Google.
-- **No** se versionan: `.env`, credenciales JSON, `token.json`, `config/autorizados.yaml`, `config/secciones.yaml`
-  ni ningún `*.xlsx` (ver `.gitignore`).
-- Las facturas con **datos personales de menores no se envían por Telegram**: se suben directamente a Drive.
-  El bot es solo para facturas de proveedores / gastos generales.
+- Cuentas de Telegram y Google **de la asociación**, nunca personales.
+- La IA de audio es **local** (Whisper + Ollama): las notas de voz no se envían a ningún servicio
+  externo.
+- **No** se versionan: `.env`, credenciales JSON, `token.json`, `config/autorizados.yaml`,
+  `config/secciones.yaml`, la base de datos `data/` ni ningún `*.xlsx` (ver `.gitignore`).
 - Durante el desarrollo y las pruebas, usa **solo datos ficticios**.
 
 ---
@@ -149,17 +172,29 @@ Drive y la escritura en Sheets (solo deja traza en el log).
 ```
 bot-facturas/
 ├── config/
-│   ├── secciones.example.yaml   # sección -> carpeta de Drive (plantilla)
-│   ├── categorias.yaml          # categorías por sección
+│   ├── secciones.example.yaml   # sección -> carpeta de Drive (plantilla; solo Fase 2)
+│   ├── categorias.yaml          # categorías por sección  ← catálogo, fuente de verdad
 │   └── autorizados.example.yaml # chat_id -> nombre (plantilla)
 ├── src/
+│   ├── bot.py               # punto de entrada (long polling) + handlers
 │   ├── config.py            # carga .env + catálogos + autorizados
 │   ├── catalogos.py         # secciones y categorías (desde YAML)
-│   ├── autenticacion.py     # credenciales Google (service_account | oauth)
-│   ├── validacion.py        # parseo + validación del mensaje
-│   ├── drive.py             # subida a Drive
-│   ├── sheets.py            # construcción de fila + append
+│   ├── validacion.py        # parseo + validación del mensaje de texto
+│   ├── db.py                # persistencia en SQLite  ← fuente de verdad
+│   ├── transcribir.py       # IA: voz -> texto (Whisper local)
+│   ├── interpretar.py       # IA: texto -> campos del gasto (Ollama local)
 │   ├── util.py              # normalización y trimestre
-│   └── bot.py               # punto de entrada (long polling)
+│   ├── autenticacion.py     # credenciales Google (solo Fase 2)
+│   └── drive.py / sheets.py # Google Drive / Sheets (legacy / solo Fase 2)
+├── data/                    # base de datos SQLite (no se versiona)
 └── tests/                   # pruebas offline
 ```
+
+---
+
+## Documentación relacionada
+- [`GUIA-puesta-en-marcha.md`](GUIA-puesta-en-marcha.md) — arranque paso a paso en tu ordenador.
+- [`MODELOS-IA.md`](MODELOS-IA.md) — instalar y configurar la IA de audio (Whisper + Ollama).
+- [`MANUAL.md`](MANUAL.md) — entender el sistema y **cómo cambiar cada cosa**.
+- [`DECISIONES.md`](DECISIONES.md) — registro de decisiones y evolución del proyecto.
+- [`REPLICAR-CON-IA.md`](REPLICAR-CON-IA.md) — replicarlo otro año/grupo.
