@@ -1,5 +1,5 @@
 """Pruebas de la parte PURA de interpretar.py (sin Ollama ni Whisper, offline)."""
-from interpretar import Propuesta, casar_con_catalogos, extraer_json
+from interpretar import Propuesta, casar_con_catalogos, construir_prompt, extraer_json
 from util import normalizar
 
 
@@ -15,8 +15,22 @@ class _CatalogosFake:
     def categorias_de(self, seccion):
         return {normalizar(c): c for c in self._cats.get(seccion, [])}
 
+    def codigos_categorias_de(self, seccion):
+        return self._cats.get(seccion, [])
+
 
 CAT = _CatalogosFake()
+
+
+# ---------- construir_prompt ----------
+
+def test_prompt_incluye_el_catalogo_de_categorias():
+    prompt = construir_prompt("Castores, material, pinturas, 10 euros", CAT)
+    # El prompt debe listar las secciones con sus categorías válidas, para que el
+    # modelo elija la canónica en vez de depender del fuzzy.
+    assert "Castores: Material de unidad, Excursión de unidad" in prompt
+    assert "Grupo: Intendencia" in prompt
+    assert "Castores, material, pinturas, 10 euros" in prompt
 
 
 # ---------- extraer_json ----------

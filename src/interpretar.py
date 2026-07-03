@@ -44,14 +44,29 @@ class Propuesta:
         return not self.faltan
 
 
+def _catalogo_texto(catalogos) -> str:
+    """Lista, por sección, sus categorías válidas (para dárselas al modelo como contexto)."""
+    lineas = []
+    for seccion in catalogos.codigos_secciones:
+        cats = catalogos.codigos_categorias_de(seccion)
+        lineas.append(f"- {seccion}: {', '.join(cats)}" if cats else f"- {seccion}: (sin categorías)")
+    return "\n".join(lineas)
+
+
 def construir_prompt(texto: str, catalogos) -> str:
     secciones = ", ".join(catalogos.codigos_secciones)
     return (
         "Eres un extractor de datos para un registro de gastos de un grupo scout.\n"
         "Del siguiente texto dictado por voz, extrae estos campos y responde SOLO con un JSON:\n"
         '{"seccion": ..., "categoria": ..., "concepto": ..., "importe": ...}\n\n'
-        f"- seccion: una de [{secciones}] si se menciona; si no, null.\n"
-        "- categoria: la categoría del gasto tal como se diga; si no se menciona, null.\n"
+        "Estas son las SECCIONES y sus CATEGORÍAS válidas (el catálogo oficial):\n"
+        f"{_catalogo_texto(catalogos)}\n\n"
+        f"- seccion: COPIA EXACTAMENTE una de [{secciones}] si se menciona; si no, null.\n"
+        "- categoria: COPIA EXACTAMENTE una de las categorías válidas de la sección elegida, la que\n"
+        "  mejor encaje con lo que se dice AUNQUE se diga con otras palabras, en plural/singular o\n"
+        "  sin tildes (p. ej. 'seguro de la federación' → 'Seguros EdM'; 'comida de los monitores'\n"
+        "  → 'Comidas scouters'; 'excursiones de unidad' → 'Excursión de unidad'). Si de verdad\n"
+        "  NINGUNA categoría de la lista encaja, pon null. NO inventes categorías que no estén.\n"
         "- concepto: descripción breve del gasto; si no se puede deducir, null.\n"
         "- importe: cantidad en euros como número (usa punto decimal); si no se dice, null.\n"
         "  Ojo: el importe puede venir en palabras ('cuarenta y siete con treinta' = 47.30).\n"

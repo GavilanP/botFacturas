@@ -3,7 +3,7 @@
 > Documento vivo. Recoge lo que vamos pensando, las opciones barajadas y las decisiones
 > tomadas sobre la evolución del bot. Se actualiza en cada sesión de trabajo.
 >
-> Última actualización: 2026-07-03 (rev. 16)
+> Última actualización: 2026-07-03 (rev. 17)
 
 ---
 
@@ -369,6 +369,23 @@ Estado: SOLO documentado. Prioridad actual = pipeline de audio (transcribir + in
   sirve por nombre vía localhost.
 - **Doc nueva `MODELOS-IA.md`:** guía reproducible (requisitos, instalar Whisper/LLM, cómo cambiar
   la ruta del almacén interno/externo, config `.env`, verificación, rendimiento).
+
+**Paso 3 (audio) — CATÁLOGO EN EL PROMPT DEL LLM 2026-07-03:**
+- **Problema detectado:** el mapeo de categorías dependía del fuzzy (`rapidfuzz`) sobre el texto
+  libre del modelo, y daba coincidencias CONFIADAMENTE ERRÓNEAS con variaciones semánticas:
+  «comida de los monitores» → «Juegos de grupo», «seguro de la federación» → «Juegos de grupo»
+  (ambas mal), mostradas como aviso difuso como si estuvieran bien.
+- **Arreglo (idea del autor):** darle al modelo el **catálogo oficial de categorías por sección**
+  como contexto en el prompt (`construir_prompt` + `_catalogo_texto`), pidiéndole que COPIE
+  EXACTAMENTE la categoría de la lista que mejor encaje semánticamente (aunque se diga en plural,
+  sin tildes u otras palabras) o `null` si ninguna encaja. El LLM entiende la semántica; el fuzzy
+  solo comparaba letras.
+- **Verificado:** «comida de los monitores» → «Comidas scouters», «seguro de la federación» →
+  «Seguros EdM», «excursiones de unidad» → «Excursión de unidad», «material» → «Material de
+  unidad». Y categorías inexistentes («gasolina») → `null` → flujo incompleto (no se inventa).
+  Ya no salen avisos difusos porque devuelve el nombre canónico (casa exacto). Tiempos ~5-6 s.
+- Test nuevo de `construir_prompt` (incluye el catálogo). 37 tests pasan. El fuzzy de
+  `casar_con_catalogos` se mantiene como red de seguridad para erratas menores.
 
 **Foto de ticket → gasto: se puede, pero es lo difícil.**
 - Los modelos de visión pequeños fallan sobre todo en el dato crítico: el importe.
