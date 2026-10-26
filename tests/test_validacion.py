@@ -1,6 +1,6 @@
 """Pruebas de validación del mensaje (offline, sin red ni ficheros reales)."""
-from catalogos import Catalogos
-from validacion import ErrorValidacion, Factura, parsear
+from core.catalogos import Catalogos
+from core.validacion import ErrorValidacion, Factura, parsear
 
 
 def _catalogos() -> Catalogos:

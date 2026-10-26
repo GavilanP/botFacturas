@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}Incompletos · Tesorería scout{% endblock %}
+{% block content %}
+
+<div class="titular">
+  <div>
+    <p class="eyebrow">Pendientes de rellenar · {{ seccion_activa or "Todo el grupo" }}</p>
+    <h1 class="titular-h1">Gastos incompletos</h1>
+  </div>
+</div>
+
+{% if gastos %}
+<p class="intro">Estos apuntes se guardaron sin todos los datos (normalmente por nota de voz).
+Complétalos para que cuenten en los balances.</p>
+
+<div class="libro">
+  <table class="apuntes">
+    <thead>
+      <tr>
+        <th class="col-fecha">Fecha</th>
+        <th class="col-seccion">Sección</th>
+        <th>Concepto</th>
+        <th class="col-quien">Anotado por</th>
+        <th class="col-importe num">Importe</th>
+        <th class="col-acc"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for g in gastos %}
+      <tr class="apunte apunte-pendiente" style="--c: {{ colores.get(g.seccion, color_neutro) }}">
+        <td class="col-fecha">{{ g.fecha }} <span class="apunte-trim">{{ g.trimestre }}</span></td>
+        <td class="col-seccion">
+          {% if g.seccion %}
+          <span class="chip"><span class="chip-punto"></span>{{ g.seccion }}</span>
+          {% else %}<span class="falta">falta</span>{% endif %}
+        </td>
+        <td class="apunte-concepto">{{ g.concepto or "—" }}</td>
+        <td class="col-quien">{{ g.quien }}</td>
+        <td class="col-importe num">{{ g.importe|euros }} €</td>
+        <td class="col-acc">
+          <a class="btn btn-primario btn-mini" href="/gastos/{{ g.id }}/editar">Completar</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<section class="bloque estado-ok">
+  <span class="estado-ok-lis" aria-hidden="true">⚜</span>
+  <p><strong>Todo al día.</strong> No hay gastos incompletos pendientes de rellenar.</p>
+</section>
+{% endif %}
+{% endblock %}

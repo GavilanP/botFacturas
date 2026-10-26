@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titulo %}Borrar apunte · Tesorería scout{% endblock %}
+{% block content %}
+
+<div class="titular">
+  <div>
+    <p class="eyebrow">Libro de apuntes</p>
+    <h1 class="titular-h1">Borrar apunte</h1>
+  </div>
+</div>
+
+<div class="ficha ficha-borrado" style="--c: {{ colores.get(gasto.seccion, color_neutro) }}">
+  <p class="borrado-aviso">Vas a borrar este apunte. No se puede deshacer.</p>
+  <dl class="resumen">
+    <div><dt>Fecha</dt><dd>{{ gasto.fecha }}</dd></div>
+    <div><dt>Sección</dt><dd>{{ gasto.seccion or "—" }}</dd></div>
+    <div><dt>Categoría</dt><dd>{{ gasto.categoria or "—" }}</dd></div>
+    <div><dt>Concepto</dt><dd>{{ gasto.concepto or "—" }}</dd></div>
+    <div><dt>Importe</dt><dd class="resumen-importe">{{ gasto.importe|euros }} €</dd></div>
+  </dl>
+
+  <form method="post" action="/gastos/{{ gasto.id }}/borrar" class="ficha-acciones">
+    <button class="btn btn-peligro" type="submit">Sí, borrar</button>
+    <a class="btn btn-fantasma" href="/gastos">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

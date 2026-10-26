@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Tesorería · Grupo Scout Buen Consejo{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="lateral">
+      <a class="marca" href="/">
+        <span class="marca-lis" aria-hidden="true">⚜</span>
+        <span class="marca-texto">
+          <span class="marca-grupo">Buen Consejo</span>
+          <span class="marca-sub">Tesorería</span>
+        </span>
+      </a>
+
+      <form class="selector" method="get" action="/contexto">
+        <input type="hidden" name="next" value="{{ request.url.path }}">
+        <label class="selector-lbl" for="sel-sec">Sección activa</label>
+        <select id="sel-sec" name="sec" onchange="this.form.submit()">
+          <option value="">Todo el grupo</option>
+          {% for s in secciones %}
+          <option value="{{ s }}" {% if seccion_activa == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button class="selector-ir" type="submit">Fijar</button></noscript>
+      </form>
+
+      <a class="nav-nuevo" href="/gastos/nuevo">+ Anotar gasto</a>
+
+      <nav class="nav">
+        <a href="/" class="nav-item {{ 'activo' if nav == 'balance' }}">Balance</a>
+        <a href="/gastos" class="nav-item {{ 'activo' if nav == 'gastos' }}">Gastos</a>
+        <a href="/incompletos" class="nav-item {{ 'activo' if nav == 'incompletos' }}">
+          <span>Incompletos</span>
+          {% if pendientes %}<span class="nav-cuenta">{{ pendientes }}</span>{% endif %}
+        </a>
+        <a href="/presupuestos" class="nav-item {{ 'activo' if nav == 'presupuestos' }}">Presupuestos</a>
+        <a href="/estadisticas" class="nav-item {{ 'activo' if nav == 'estadisticas' }}">Estadísticas</a>
+        <div class="nav-sep"></div>
+        <a href="/asistente" class="nav-item nav-ia {{ 'activo' if nav == 'asistente' }}">
+          <span class="nav-ia-punto" aria-hidden="true"></span>Asistente de IA
+        </a>
+      </nav>
+
+      <p class="lateral-pie">Datos solo en este equipo</p>
+    </aside>
+
+    <main class="hoja">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

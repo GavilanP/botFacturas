@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }} · Tesorería scout{% endblock %}
+{% block content %}
+
+<div class="titular">
+  <div>
+    <p class="eyebrow">{{ eyebrow }}</p>
+    <h1 class="titular-h1">{{ titulo }}</h1>
+  </div>
+</div>
+
+<section class="bloque construccion">
+  <span class="construccion-sello">En construcción</span>
+  <p class="construccion-desc">{{ descripcion }}</p>
+  <p class="construccion-req">{{ requisito }}</p>
+</section>
+{% endblock %}

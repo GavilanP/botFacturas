@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }} · Tesorería scout{% endblock %}
+{% block content %}
+
+<div class="titular">
+  <div>
+    <p class="eyebrow">Libro de apuntes</p>
+    <h1 class="titular-h1">{{ titulo }}</h1>
+  </div>
+</div>
+
+{% if errores %}
+<div class="aviso-error" role="alert">
+  <strong>Revisa estos datos:</strong>
+  <ul>{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form class="ficha" method="post" action="{{ accion }}">
+  <div class="ficha-fila">
+    <label class="campo">Fecha
+      <input type="date" name="fecha" value="{{ gasto.fecha_input }}" required>
+    </label>
+    <label class="campo">Importe (€)
+      <input type="text" name="importe" value="{{ gasto.importe }}" placeholder="47,30"
+             inputmode="decimal" required>
+    </label>
+  </div>
+
+  <div class="ficha-fila">
+    <label class="campo">Sección
+      <select name="seccion" id="seccion" required>
+        <option value="">Elige una sección</option>
+        {% for s in catalogo.keys() %}
+        <option value="{{ s }}" {% if gasto.seccion == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="campo">Categoría
+      <select name="categoria" id="categoria" required>
+        <option value="">Elige primero la sección</option>
+      </select>
+    </label>
+  </div>
+
+  <label class="campo">Concepto
+    <input type="text" name="concepto" value="{{ gasto.concepto }}"
+           placeholder="En qué se ha gastado" required>
+  </label>
+
+  <label class="campo">Anotado por
+    <input type="text" name="quien" value="{{ gasto.quien }}" placeholder="Tu nombre">
+  </label>
+
+  <div class="ficha-acciones">
+    <button class="btn btn-primario" type="submit">Guardar apunte</button>
+    <a class="btn btn-fantasma" href="/gastos">Cancelar</a>
+  </div>
+</form>
+
+<script>
+  // Las categorías dependen de la sección elegida (el servidor vuelve a validar).
+  const CATALOGO = {{ catalogo|tojson }};
+  const selSeccion = document.getElementById("seccion");
+  const selCategoria = document.getElementById("categoria");
+  const categoriaActual = {{ gasto.categoria|tojson }};
+
+  function pintarCategorias() {
+    const cats = CATALOGO[selSeccion.value] || [];
+    selCategoria.innerHTML = "";
+    const vacia = document.createElement("option");
+    vacia.value = "";
+    vacia.textContent = cats.length ? "Elige una categoría" : "Elige primero la sección";
+    selCategoria.appendChild(vacia);
+    for (const c of cats) {
+      const op = document.createElement("option");
+      op.value = c;
+      op.textContent = c;
+      if (c === categoriaActual) op.selected = true;
+      selCategoria.appendChild(op);
+    }
+  }
+  selSeccion.addEventListener("change", pintarCategorias);
+  pintarCategorias();
+</script>
+{% endblock %}

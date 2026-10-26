@@ -397,6 +397,25 @@ Estado: SOLO documentado. Prioridad actual = pipeline de audio (transcribir + in
   versionados): resumen de hallazgos priorizados y wireframe de la web de tesorería con chat IA y voz desde el
   navegador. La recomendación estructural clave: extraer un paquete `core/` compartido antes de construir la web.
 
+**Web de tesorería construida (Paso 2) — 2026-07-03:**
+- **Refactor previo `core/`:** la lógica compartida (`db, catalogos, validacion, config, util,
+  interpretar, transcribir` + los legacy `sheets, drive, autenticacion`) se movió a `src/core/`,
+  dejando `bot.py` como entrada del bot y `web/` como la nueva interfaz. Ambos reutilizan `core`
+  sin duplicar. `pytest.ini` mantiene `pythonpath = src`; se corrigió `BASE_DIR` en `config.py`
+  (ahora tres niveles arriba). Los 37 tests siguieron en verde tras el refactor.
+- **Stack:** FastAPI + Jinja2 (plantillas server-side) + CSS plano, servido por uvicorn. Sin
+  framework JS (solo un `<script>` mínimo para el desplegable de categorías dependiente de sección).
+  Elegido por sencillez y para aprender lo esencial de web sin capas extra.
+- **Alcance v1: CRUD completo** — panel de balances (por sección / categoría / trimestre) y
+  crear/editar/**completar incompletos**/borrar. Nuevas consultas en `core/db.py`
+  (`listar_gastos`, `obtener_gasto`, `actualizar_gasto`, `borrar_gasto`, `resumen_balances`).
+  La validación reutiliza `core.validacion`/`core.catalogos`; el trimestre, `core.util.trimestre_de`.
+- **Seguridad v1: solo `127.0.0.1`, sin login** (decisión del autor). Es seguro mientras escuche
+  solo en localhost; abrirla a la red exigiría añadir autenticación (queda para más adelante).
+- **Arranque:** `python src/run_web.py` → http://127.0.0.1:8000. Tests nuevos: `test_db_web.py`
+  (consultas) y `test_web.py` (smoke con TestClient). Total 48 tests en verde. Verificado además
+  end-to-end contra una DB temporal (crear→editar→borrar por HTTP).
+
 **Foto de ticket → gasto: se puede, pero es lo difícil.**
 - Los modelos de visión pequeños fallan sobre todo en el dato crítico: el importe.
 - Dos caminos: (a) OCR en el dispositivo (macOS tiene OCR nativo muy bueno vía Vision) +
@@ -468,9 +487,9 @@ Orden pensado para aprender sin frustrarse: de lo más fundamental/fácil a lo m
 
 1. ✅ **SQLite como fuente de verdad.** HECHO (2026-07-02). El bot escribe en DB local. Primer
    paso hacia la independencia + aprender bases de datos.
-2. **Web local propia** (FastAPI + SQLite + frontend sencillo) para ver balances. Aprender
-   desarrollo web, login, despliegue. Aquí se deja de necesitar Sheets para visibilidad.
-   ← **SIGUIENTE PASO MAYOR.**
+2. ✅ **Web local propia** (FastAPI + SQLite + frontend sencillo). HECHO (2026-07-03). Panel de
+   balances + CRUD de gastos (incl. completar incompletos). Solo `127.0.0.1`, sin login (v1).
+   Aquí se deja de necesitar Sheets para visibilidad. Pendiente de aprender: login y despliegue.
 3. ✅ **IA de audio** (Whisper → parseo → flujo de confirmación existente). HECHO y verificado
    end-to-end (2026-07-03). Primera victoria de IA. Pulido pendiente: rendimiento y gastos
    incompletos.

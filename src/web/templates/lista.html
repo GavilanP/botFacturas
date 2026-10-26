@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block titulo %}Gastos · Tesorería scout{% endblock %}
+{% block content %}
+
+<div class="titular">
+  <div>
+    <p class="eyebrow">Libro de apuntes · {{ seccion_activa or "Todo el grupo" }}</p>
+    <h1 class="titular-h1">Gastos registrados</h1>
+  </div>
+  <a class="btn btn-primario" href="/gastos/nuevo">Anotar gasto</a>
+</div>
+
+<form class="barra-filtros" method="get" action="/gastos">
+  <label class="campo-filtro">Trimestre
+    <select name="trimestre">
+      <option value="">Todos</option>
+      {% for t in ["1º", "2º", "3º"] %}
+      <option value="{{ t }}" {% if filtros.trimestre == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="campo-filtro">Estado
+    <select name="estado">
+      <option value="">Todos</option>
+      <option value="completo" {% if filtros.estado == "completo" %}selected{% endif %}>Completos</option>
+      <option value="incompleto" {% if filtros.estado == "incompleto" %}selected{% endif %}>Incompletos</option>
+    </select>
+  </label>
+  <button class="btn" type="submit">Filtrar</button>
+  <a class="btn btn-fantasma" href="/gastos">Quitar filtros</a>
+</form>
+
+{% if gastos %}
+<div class="libro">
+  <table class="apuntes">
+    <thead>
+      <tr>
+        <th class="col-fecha">Fecha</th>
+        <th class="col-seccion">Sección</th>
+        <th>Concepto</th>
+        <th class="col-cat">Categoría</th>
+        <th class="col-quien">Anotado por</th>
+        <th class="col-importe num">Importe</th>
+        <th class="col-acc"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for g in gastos %}
+      <tr class="apunte {% if g.estado == 'incompleto' %}apunte-pendiente{% endif %}"
+          style="--c: {{ colores.get(g.seccion, color_neutro) }}">
+        <td class="col-fecha">
+          {{ g.fecha }}
+          <span class="apunte-trim">{{ g.trimestre }}</span>
+        </td>
+        <td class="col-seccion">
+          <span class="chip"><span class="chip-punto"></span>{{ g.seccion or "—" }}</span>
+        </td>
+        <td class="apunte-concepto">
+          {{ g.concepto or "—" }}
+          {% if g.estado == 'incompleto' %}<span class="sello">falta rellenar</span>{% endif %}
+        </td>
+        <td class="col-cat">{{ g.categoria or "—" }}</td>
+        <td class="col-quien">{{ g.quien }}</td>
+        <td class="col-importe num">{{ g.importe|euros }} €</td>
+        <td class="col-acc">
+          <a class="btn-icono" href="/gastos/{{ g.id }}/editar" title="Editar">Editar</a>
+          <a class="btn-icono btn-icono-peligro" href="/gastos/{{ g.id }}/borrar" title="Borrar">Borrar</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bloque vacio-panel">
+  <p>No hay apuntes con estos filtros. <a href="/gastos">Ver todos</a> o <a href="/gastos/nuevo">anotar uno nuevo</a>.</p>
+</div>
+{% endif %}
+{% endblock %}

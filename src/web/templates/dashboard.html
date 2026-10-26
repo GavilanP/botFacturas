@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block titulo %}Balance · Tesorería scout{% endblock %}
+{% block content %}
+
+{% if seccion %}
+{# ---- Balance de UNA sección (contexto fijado) ---- #}
+<section class="cierre" style="--c: {{ colores.get(seccion, color_neutro) }}">
+  <p class="eyebrow">Balance de sección · {{ resumen.n }} apunte{{ '' if resumen.n == 1 else 's' }}</p>
+  <h1 class="cierre-seccion"><span class="cierre-punto"></span>{{ seccion }}</h1>
+  <div class="cierre-cifra">
+    <span class="cierre-cantidad">{{ resumen.total|euros }}</span>
+    <span class="cierre-moneda">€</span>
+  </div>
+  <p class="cierre-nota">Total gastado por {{ seccion }} hasta hoy</p>
+</section>
+
+{% if resumen.por_categoria %}
+{% set maxcat = resumen.por_categoria|map(attribute='total')|max %}
+<section class="bloque" style="--c: {{ colores.get(seccion, color_neutro) }}">
+  <h2 class="bloque-titulo">Gasto por categoría</h2>
+  <ul class="lineas">
+    {% for f in resumen.por_categoria %}
+    <li class="linea">
+      <span class="linea-tab"></span>
+      <span class="linea-nombre">{{ f.categoria or "Sin categoría" }}</span>
+      <span class="linea-barra"><span class="linea-relleno" style="width: {{ (f.total / maxcat * 100)|round(1) }}%"></span></span>
+      <span class="linea-cuenta">{{ f.n }}</span>
+      <span class="linea-importe">{{ f.total|euros }} €</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<section class="bloque vacio-panel">
+  <p>{{ seccion }} todavía no tiene gastos. <a href="/gastos/nuevo">Anota el primero.</a></p>
+</section>
+{% endif %}
+
+{% else %}
+{# ---- Balance de TODO el grupo: una línea por sección ---- #}
+<section class="cierre">
+  <p class="eyebrow">Todo el grupo · {{ n_grupo }} apunte{{ '' if n_grupo == 1 else 's' }}</p>
+  <div class="cierre-cifra">
+    <span class="cierre-cantidad">{{ total_grupo|euros }}</span>
+    <span class="cierre-moneda">€</span>
+  </div>
+  <p class="cierre-nota">Total gastado por el grupo · elige una sección en la barra para ver su balance</p>
+</section>
+
+{% set maxsec = (overview|map(attribute='total')|max) or 1 %}
+<section class="bloque">
+  <h2 class="bloque-titulo">Balance por sección</h2>
+  <ul class="lineas">
+    {% for f in overview %}
+    <li class="linea" style="--c: {{ colores.get(f.seccion, color_neutro) }}">
+      <span class="linea-tab"></span>
+      <a class="linea-nombre linea-enlace" href="/contexto?sec={{ f.seccion|urlencode }}&next=/">{{ f.seccion or "Sin sección" }}</a>
+      <span class="linea-barra"><span class="linea-relleno" style="width: {{ (f.total / maxsec * 100)|round(1) }}%"></span></span>
+      <span class="linea-cuenta">{{ f.n }}</span>
+      <span class="linea-importe">{{ f.total|euros }} €</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,7 +1,7 @@
 """Pruebas de la lógica pura del flujo de audio en bot.py (sin Telegram ni IA)."""
 from bot import _resumen_parcial
-from interpretar import Propuesta
-from validacion import Factura
+from core.interpretar import Propuesta
+from core.validacion import Factura
 
 
 def test_resumen_parcial_omite_campos_vacios():

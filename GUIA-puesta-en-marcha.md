@@ -114,7 +114,20 @@ Para verlo, puedes usar cualquier visor de SQLite, o el comando `/pendientes` (q
   revisa el paso 12 y [`MODELOS-IA.md`](MODELOS-IA.md).
 - (Opcional) Probar la lógica sin Telegram: `.venv\Scripts\python -m pytest` dentro de `bot-facturas`.
 
-## 11. Opcional — Facturas a Google Drive (Fase 2)
+## 11. La web de tesorería (ver balances y editar gastos)
+Además del bot, hay una **web** para ver los totales y **gestionar** los gastos (crear, editar,
+completar los incompletos y borrar). Usa la **misma** base de datos que el bot.
+
+1. Arráncala en una terminal dentro de `bot-facturas`:
+   `.venv\Scripts\python src\run_web.py`
+   *(En Mac/Linux: `.venv/bin/python src/run_web.py`.)*
+2. Abre en el navegador: **http://127.0.0.1:8000**
+3. Para pararla: **Ctrl+C** en esa terminal.
+
+La web escucha **solo en tu ordenador** (`127.0.0.1`): nadie más de la red puede entrar y **no
+tiene contraseña**. El bot y la web pueden estar arrancados a la vez (cada uno en su terminal).
+
+## 12. Opcional — Facturas a Google Drive (Fase 2)
 Si además de registrar el gasto quieres **subir la foto/PDF** de la factura a Drive:
 1. Consigue un **`credenciales.json`** de Google (cuenta de servicio recomendada) y mételo en `config\`.
 2. En `.env`: `FACTURAS_ACTIVAS=1`, `GOOGLE_AUTH_MODE=service_account`,
@@ -124,7 +137,7 @@ Si además de registrar el gasto quieres **subir la foto/PDF** de la factura a D
 El bot pedirá la foto/PDF junto al texto y la subirá a la carpeta de la sección. (Sin esto, en modo solo-DB, el
 gasto se guarda igual en la base de datos.)
 
-## 12. Opcional — Registrar gastos por voz (IA local)
+## 13. Opcional — Registrar gastos por voz (IA local)
 El bot puede transcribir e interpretar **notas de voz** con IA que corre **en tu ordenador** (el audio no sale de
 la máquina). Necesita `ffmpeg`, `mlx-whisper` y **Ollama** con un modelo instalado, y activar `AUDIO_ACTIVO=1`.
 

@@ -2,8 +2,8 @@
 import sqlite3
 from datetime import datetime
 
-import db
-from validacion import Factura
+from core import db
+from core.validacion import Factura
 
 
 def test_guardar_y_recuperar(tmp_path):

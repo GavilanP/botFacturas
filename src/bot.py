@@ -23,13 +23,13 @@ from telegram.ext import (
     filters,
 )
 
-import db
-import drive
-import validacion
-from config import cargar_config, validar_config
-from interpretar import interpretar
-from transcribir import transcribir_bytes
-from validacion import ErrorValidacion, Factura
+from core import db
+from core import drive
+from core import validacion
+from core.config import cargar_config, validar_config
+from core.interpretar import interpretar
+from core.transcribir import transcribir_bytes
+from core.validacion import ErrorValidacion, Factura
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s", level=logging.INFO
@@ -484,7 +484,7 @@ def main() -> None:
 
     # Solo la subida de facturas a Drive (Fase 2) necesita credenciales de Google.
     if not cfg.dry_run and cfg.facturas_activas:
-        from autenticacion import credenciales
+        from core.autenticacion import credenciales
         creds = credenciales(cfg.auth_mode, cfg.credentials_path)
         app.bot_data["drive"] = drive.construir_servicio(creds)
 

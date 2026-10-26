@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block titulo %}Estadísticas · Tesorería scout{% endblock %}
+{% block content %}
+
+<div class="titular">
+  <div>
+    <p class="eyebrow">Análisis · {{ seccion or "Todo el grupo" }}</p>
+    <h1 class="titular-h1">Estadísticas</h1>
+  </div>
+</div>
+
+{% if resumen.n %}
+<div class="kpis">
+  <div class="kpi">
+    <span class="kpi-valor">{{ resumen.total|euros }} €</span>
+    <span class="kpi-etq">Total gastado</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-valor">{{ resumen.n }}</span>
+    <span class="kpi-etq">Apuntes</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-valor">{{ media|euros }} €</span>
+    <span class="kpi-etq">Media por apunte</span>
+  </div>
+  <div class="kpi">
+    {% if seccion %}
+    <span class="kpi-valor">{{ resumen.por_categoria|length }}</span>
+    <span class="kpi-etq">Categorías con gasto</span>
+    {% else %}
+    <span class="kpi-valor">{{ resumen.por_seccion|length }}</span>
+    <span class="kpi-etq">Secciones con gasto</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="dos-columnas">
+  <section class="bloque">
+    <h2 class="bloque-titulo">Por trimestre</h2>
+    <table class="cuentas">
+      <tbody>
+      {% for f in resumen.por_trimestre %}
+        <tr>
+          <td class="cuentas-clave">{{ f.trimestre }} trimestre</td>
+          <td class="cuentas-n">{{ f.n }}</td>
+          <td class="cuentas-importe">{{ f.total|euros }} €</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="bloque">
+    <h2 class="bloque-titulo">Por categoría</h2>
+    <table class="cuentas">
+      <tbody>
+      {% for f in resumen.por_categoria %}
+        <tr style="--c: {{ colores.get(seccion or f.seccion, color_neutro) }}">
+          <td class="cuentas-punto"><span class="punto"></span></td>
+          <td class="cuentas-clave">
+            {{ f.categoria or "Sin categoría" }}
+            {% if not seccion %}<span class="cuentas-seccion">{{ f.seccion or "—" }}</span>{% endif %}
+          </td>
+          <td class="cuentas-importe">{{ f.total|euros }} €</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% else %}
+<section class="bloque vacio-panel">
+  <p>Todavía no hay datos que analizar en «{{ seccion or "Todo el grupo" }}».
+     <a href="/gastos/nuevo">Anota un gasto.</a></p>
+</section>
+{% endif %}
+{% endblock %}

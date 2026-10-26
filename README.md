@@ -118,6 +118,22 @@ modelos, cómo instalarlos, dónde se guardan y cómo cambiar la ruta).
 
 ---
 
+## Web de tesorería (Paso 2)
+
+Además del bot, hay una **web local** para ver los balances y **gestionar** los gastos (crear,
+editar, completar los incompletos y borrar). Lee y escribe en la **misma** base de datos SQLite
+que el bot. Arranque:
+
+```bash
+.venv/bin/python src/run_web.py     # (Windows: .venv\Scripts\python src\run_web.py)
+```
+
+Luego abre **http://127.0.0.1:8000** en el navegador. La web escucha **solo en este equipo**
+(`127.0.0.1`): nadie más de la red puede entrar y **no tiene login** (v1). Si algún día se quisiera
+abrir a otros scouters habría que añadir autenticación.
+
+---
+
 ## Facturas a Google Drive (opcional, Fase 2)
 
 Con `FACTURAS_ACTIVAS=1` el bot, además de guardar el gasto, pide la **foto/PDF** y la sube a
@@ -176,16 +192,22 @@ bot-facturas/
 │   ├── categorias.yaml          # categorías por sección  ← catálogo, fuente de verdad
 │   └── autorizados.example.yaml # chat_id -> nombre (plantilla)
 ├── src/
-│   ├── bot.py               # punto de entrada (long polling) + handlers
-│   ├── config.py            # carga .env + catálogos + autorizados
-│   ├── catalogos.py         # secciones y categorías (desde YAML)
-│   ├── validacion.py        # parseo + validación del mensaje de texto
-│   ├── db.py                # persistencia en SQLite  ← fuente de verdad
-│   ├── transcribir.py       # IA: voz -> texto (Whisper local)
-│   ├── interpretar.py       # IA: texto -> campos del gasto (Ollama local)
-│   ├── util.py              # normalización y trimestre
-│   ├── autenticacion.py     # credenciales Google (solo Fase 2)
-│   └── drive.py / sheets.py # Google Drive / Sheets (legacy / solo Fase 2)
+│   ├── bot.py               # punto de entrada del BOT (long polling) + handlers
+│   ├── run_web.py           # punto de entrada de la WEB (uvicorn, solo localhost)
+│   ├── core/                # lógica compartida por el bot y la web
+│   │   ├── config.py        #   carga .env + catálogos + autorizados
+│   │   ├── catalogos.py     #   secciones y categorías (desde YAML)
+│   │   ├── validacion.py    #   parseo + validación del mensaje de texto
+│   │   ├── db.py            #   persistencia y consultas SQLite  ← fuente de verdad
+│   │   ├── transcribir.py   #   IA: voz -> texto (Whisper local)
+│   │   ├── interpretar.py   #   IA: texto -> campos del gasto (Ollama local)
+│   │   ├── util.py          #   normalización y trimestre
+│   │   ├── autenticacion.py #   credenciales Google (solo Fase 2)
+│   │   └── drive.py/sheets.py  #  Google Drive / Sheets (legacy / solo Fase 2)
+│   └── web/                 # web de tesorería (FastAPI + plantillas Jinja2)
+│       ├── app.py           #   rutas y lógica de la web
+│       ├── templates/       #   HTML (panel, lista, formulario)
+│       └── static/          #   estilos
 ├── data/                    # base de datos SQLite (no se versiona)
 └── tests/                   # pruebas offline
 ```

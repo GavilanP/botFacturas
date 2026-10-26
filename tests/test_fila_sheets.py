@@ -1,9 +1,9 @@
 """Pruebas del mapeo de campos a columnas de Sheets y del trimestre (offline)."""
 from datetime import date, datetime
 
-from sheets import construir_fila
-from util import trimestre_de
-from validacion import Factura
+from core.sheets import construir_fila
+from core.util import trimestre_de
+from core.validacion import Factura
 
 
 def test_orden_y_contenido_de_fila():

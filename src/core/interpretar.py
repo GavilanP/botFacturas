@@ -19,8 +19,8 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from util import normalizar
-from validacion import parsear_importe
+from .util import normalizar
+from .validacion import parsear_importe
 
 MODELO_POR_DEFECTO = "qwen2.5:7b"
 HOST_POR_DEFECTO = "http://localhost:11434"

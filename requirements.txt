@@ -3,6 +3,12 @@ python-telegram-bot>=21
 python-dotenv>=1
 PyYAML>=6
 
+# Web local de tesorería (Paso 2): ver balances y gestionar gastos (CRUD)
+fastapi>=0.110         # framework web
+uvicorn[standard]>=0.29  # servidor ASGI para arrancar la web
+jinja2>=3              # plantillas HTML server-side
+python-multipart>=0.0.9  # leer formularios POST
+
 # IA de audio local (Paso 3): voz -> texto -> campos del gasto
 mlx-whisper>=0.4     # transcripción Whisper en Apple Silicon (requiere ffmpeg: brew install ffmpeg)
 ollama>=0.4          # cliente del servidor Ollama local (qwen2.5:14b)

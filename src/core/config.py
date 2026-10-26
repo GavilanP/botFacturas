@@ -8,11 +8,13 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-import interpretar
-import transcribir
-from catalogos import Catalogos
+from . import interpretar
+from . import transcribir
+from .catalogos import Catalogos
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+# config.py vive en src/core/, así que la raíz del proyecto está tres niveles arriba
+# (core -> src -> raíz). Ahí están .env y la carpeta config/.
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 
 load_dotenv(BASE_DIR / ".env")

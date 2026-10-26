@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from util import trimestre_de
+from .util import trimestre_de
 
 
 def construir_fila(factura, quien: str, enlace: str, momento: datetime) -> list:

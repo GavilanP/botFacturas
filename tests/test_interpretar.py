@@ -1,6 +1,6 @@
 """Pruebas de la parte PURA de interpretar.py (sin Ollama ni Whisper, offline)."""
-from interpretar import Propuesta, casar_con_catalogos, construir_prompt, extraer_json
-from util import normalizar
+from core.interpretar import Propuesta, casar_con_catalogos, construir_prompt, extraer_json
+from core.util import normalizar
 
 
 class _CatalogosFake:

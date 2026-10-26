@@ -27,17 +27,23 @@ sistema. En el modo actual (**solo-DB**) el bot **no necesita Google**.
 
 ```
 bot-facturas/
-├── src/                       # el bot (Python)
-│   ├── bot.py                 # punto de entrada (long polling) + handlers
-│   ├── validacion.py          # parseo + validación del mensaje de texto
-│   ├── catalogos.py           # carga secciones/categorías desde YAML
-│   ├── config.py              # carga .env + catálogos + autorizados
-│   ├── db.py                  # persistencia en SQLite  ← FUENTE DE VERDAD
-│   ├── transcribir.py         # IA: voz -> texto (Whisper local)
-│   ├── interpretar.py         # IA: texto -> campos del gasto (Ollama local)
-│   ├── util.py                # normalización y cálculo de Trimestre
-│   ├── autenticacion.py       # credenciales Google (solo Fase 2)
-│   └── drive.py / sheets.py   # Drive / Sheets (legacy · solo Fase 2)
+├── src/                       # código (Python)
+│   ├── bot.py                 # entrada del BOT (long polling) + handlers
+│   ├── run_web.py             # entrada de la WEB (uvicorn, solo localhost)
+│   ├── core/                  # lógica COMPARTIDA por bot y web
+│   │   ├── validacion.py      #   parseo + validación del mensaje de texto
+│   │   ├── catalogos.py       #   carga secciones/categorías desde YAML
+│   │   ├── config.py          #   carga .env + catálogos + autorizados
+│   │   ├── db.py              #   persistencia y consultas SQLite  ← FUENTE DE VERDAD
+│   │   ├── transcribir.py     #   IA: voz -> texto (Whisper local)
+│   │   ├── interpretar.py     #   IA: texto -> campos del gasto (Ollama local)
+│   │   ├── util.py            #   normalización y cálculo de Trimestre
+│   │   ├── autenticacion.py   #   credenciales Google (solo Fase 2)
+│   │   └── drive.py/sheets.py #   Drive / Sheets (legacy · solo Fase 2)
+│   └── web/                   # web de tesorería (FastAPI + Jinja2)
+│       ├── app.py             #   rutas CRUD + balances
+│       ├── templates/         #   HTML
+│       └── static/            #   estilos
 ├── config/
 │   ├── secciones.yaml         # sección -> carpeta de Drive (real; solo Fase 2)
 │   ├── categorias.yaml        # categorías por sección  ← CATÁLOGO, fuente de verdad
@@ -76,11 +82,11 @@ bot-facturas/
   Fase 2); `creado_en` es la marca de tiempo.
 - `estado` = `completo` o `incompleto`. Un gasto por **voz** al que le falte sección/categoría/concepto (pero
   **sí** el importe, obligatorio) se guarda como `incompleto` con esos campos en blanco; se listan con
-  `/pendientes`. El esquema y la migración (columna `estado`) están en `src/db.py`.
+  `/pendientes`. El esquema y la migración (columna `estado`) están en `src/core/db.py`.
 
 **(Legacy) Columnas de `Tabla de Gastos` en Google Sheets (A:I):**
 `UNIDAD | Trimestre | Categoría | Importe | Factura | Fecha | Comentarios | Enlace factura | Quién` — solo
-aplica si reactivas la versión que escribía en Sheets (ver `src/sheets.py`).
+aplica si reactivas la versión que escribía en Sheets (ver `src/core/sheets.py`).
 
 ---
 
@@ -169,9 +175,13 @@ Claves de los balances:
   dado al modelo como contexto y `rapidfuzz` como red de seguridad. Ver [`MODELOS-IA.md`](MODELOS-IA.md).
 - **Gastos incompletos** por voz + comando `/pendientes`.
 - **SQLite como fuente de verdad** (Paso 1 del roadmap).
+- **Web local de tesorería** (Paso 2): FastAPI + Jinja2 sobre la misma SQLite. Panel de balances
+  (por sección, categoría y trimestre) y **CRUD** de gastos (crear, editar, **completar** los
+  incompletos y borrar). Solo `127.0.0.1`, sin login (v1). Arranque: `python src/run_web.py`
+  → http://127.0.0.1:8000. Código en `src/web/`.
 
 **Pendiente / futuro** (detalle y decisiones en [`DECISIONES.md`](DECISIONES.md)):
-- **Web local de tesorería** (FastAPI + SQLite): balances, estadísticas, editar/completar gastos. Es el Paso 2.
-- **Completar los incompletos** desde el chat o la web (hoy solo se listan).
+- **Login / autenticación** en la web (necesario antes de abrirla más allá de `127.0.0.1`).
+- **Completar los incompletos** también desde el chat (la web ya lo permite).
 - **Despliegue 24/7** (systemd / `deploy/bot.service`) y **copias de seguridad** de `data/gastos.db`.
 - **Aviso de errores al admin** (`ADMIN_CHAT_ID`) y arranque de instancia única.

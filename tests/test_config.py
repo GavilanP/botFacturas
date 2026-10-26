@@ -1,7 +1,7 @@
 """Pruebas de validar_config: el comportamiento clave del modo solo-DB (offline)."""
 from pathlib import Path
 
-from config import Config, validar_config
+from core.config import Config, validar_config
 
 
 class _CatalogosFake:

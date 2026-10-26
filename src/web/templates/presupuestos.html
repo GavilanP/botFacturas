@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block titulo %}Presupuestos · Tesorería scout{% endblock %}
+
+{% macro barra(d) %}
+<div class="presu-barra presu-{{ d.estado }}"><span class="presu-relleno" style="width: {{ [d.pct, 100]|min }}%"></span></div>
+{% endmacro %}
+
+{% macro params_form(params) %}
+<form class="params" method="post" action="/presupuestos/parametros">
+  <label class="campo">€ por persona · Material
+    <input type="text" name="material" inputmode="decimal" placeholder="0,00"
+           value="{{ params.material|euros if params.material else '' }}"></label>
+  <label class="campo">€ por persona · Excursión
+    <input type="text" name="excursion" inputmode="decimal" placeholder="0,00"
+           value="{{ params.excursion|euros if params.excursion else '' }}"></label>
+  <label class="campo">Mínimo Material / unidad
+    <input type="text" name="minimo" inputmode="decimal" placeholder="0,00"
+           value="{{ params.minimo|euros if params.minimo else '' }}"></label>
+  <button class="btn btn-primario" type="submit">Guardar parámetros</button>
+</form>
+{% endmacro %}
+
+{% macro linea_cat(nombre, d) %}
+<div class="uni-linea">
+  <div class="uni-linea-cab">
+    <span class="uni-linea-nombre">{{ nombre }}</span>
+    <span class="uni-linea-cifra">{{ d.gastado|euros }} € <span class="presu-de">de</span> {{ d.presupuesto|euros }} €</span>
+  </div>
+  {{ barra(d) }}
+  <div class="uni-linea-pie presu-{{ d.estado }}">
+    {% if d.estado != 'sin' %}{{ d.pct|round|int }}% usado · {{ d.restante|euros }} € restante{% else %}sin presupuesto{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro unidad_bloque(u) %}
+<div class="uni" style="--c: {{ colores.get(u.seccion, color_neutro) }}">
+  <div class="uni-cab">
+    <h3 class="uni-nombre"><span class="presu-punto"></span>{{ u.seccion }}</h3>
+    <span class="uni-total">{{ u.gastado|euros }} € <span class="presu-de">de</span> {{ u.presupuesto|euros }} €</span>
+  </div>
+  <form class="censo" method="post" action="/presupuestos/censo">
+    <input type="hidden" name="seccion" value="{{ u.seccion }}">
+    <label>Educandos <input type="number" name="educandos" min="0" value="{{ u.educandos }}"></label>
+    <label>Scouters <input type="number" name="scouters" min="0" value="{{ u.scouters }}"></label>
+    <span class="censo-personas">= {{ u.personas }} personas</span>
+    <button class="btn btn-mini" type="submit">Guardar censo</button>
+  </form>
+  {{ linea_cat("Material de unidad", u.material) }}
+  {{ linea_cat("Excursión de unidad", u.excursion) }}
+  {% if u.dinero_entregado %}
+  <p class="uni-dinero">Dinero entregado: {{ u.dinero_entregado|euros }} € <span class="presu-de">(no lleva presupuesto)</span></p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+
+<div class="titular">
+  <div>
+    <p class="eyebrow">Control presupuestario · {{ seccion or "Todo el grupo" }}</p>
+    <h1 class="titular-h1">Presupuestos</h1>
+  </div>
+</div>
+
+{% if modo == 'unidad' %}
+{# ---- Una unidad: presupuesto calculado ---- #}
+<section class="bloque">
+  <h2 class="bloque-titulo">Parámetros de cálculo <span class="titulo-nota">(compartidos por todas las unidades)</span></h2>
+  {{ params_form(params) }}
+</section>
+<section class="bloque">
+  {{ unidad_bloque(u) }}
+</section>
+
+{% elif modo == 'categorias' %}
+{# ---- Grupo o Campamento: por categoría y trimestre ---- #}
+<div class="kpis">
+  <div class="kpi"><span class="kpi-valor">{{ datos.presupuesto|euros }} €</span><span class="kpi-etq">Presupuestado</span></div>
+  <div class="kpi"><span class="kpi-valor">{{ datos.gastado|euros }} €</span><span class="kpi-etq">Gastado</span></div>
+  <div class="kpi"><span class="kpi-valor {{ 'en-rojo' if datos.restante < 0 }}">{{ datos.restante|euros }} €</span><span class="kpi-etq">Restante</span></div>
+</div>
+
+<form method="post" action="/presupuestos/categorias">
+  <input type="hidden" name="seccion" value="{{ seccion }}">
+  <section class="bloque">
+    <div class="libro">
+      <table class="tabla-presu">
+        <thead>
+          <tr>
+            <th class="col-cat">Categoría</th>
+            {% for tri in datos.trimestres %}<th class="num">{{ tri }}</th>{% endfor %}
+            <th class="num">Total</th><th class="num">Gastado</th><th class="num">Uso</th>
+          </tr>
+        </thead>
+        {% for grupo in datos.grupos %}
+        <tbody>
+          <tr class="grupo-fila"><td colspan="{{ datos.trimestres|length + 4 }}">{{ grupo.partida }}</td></tr>
+          {% for f in grupo.filas %}
+          <tr>
+            <td class="col-cat">{{ f.categoria }}</td>
+            {% for celda in f.celdas %}
+            <td class="num"><input class="celda" type="text" inputmode="decimal"
+                name="imp:{{ f.idx }}:{{ celda.tri }}"
+                value="{{ celda.pres|euros if celda.pres else '' }}" placeholder="0"></td>
+            {% endfor %}
+            <td class="num presu-total-cel">{{ f.presupuesto|euros }}</td>
+            <td class="num">{{ f.gastado|euros }}</td>
+            <td class="num"><span class="presu-pct presu-{{ f.estado }}">{% if f.estado != 'sin' %}{{ f.pct|round|int }}%{% else %}—{% endif %}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% endfor %}
+        <tfoot>
+          <tr>
+            <td class="col-cat">Total {{ seccion }}</td>
+            {% for tri in datos.trimestres %}<td class="num">{{ datos.tri_tot[tri].pres|euros }}</td>{% endfor %}
+            <td class="num">{{ datos.presupuesto|euros }}</td>
+            <td class="num">{{ datos.gastado|euros }}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="ficha-acciones">
+      <button class="btn btn-primario" type="submit">Guardar presupuesto de {{ seccion }}</button>
+    </div>
+  </section>
+</form>
+
+{% else %}
+{# ---- Todo el grupo ---- #}
+<section class="bloque">
+  <h2 class="bloque-titulo">Parámetros de cálculo <span class="titulo-nota">(unidades)</span></h2>
+  {% if not (params.material or params.excursion or params.minimo) %}
+  <p class="aviso-info">Fija estos parámetros para calcular el presupuesto de cada unidad
+    (€ por persona = educando + scouter; anual).</p>
+  {% endif %}
+  {{ params_form(params) }}
+</section>
+
+<section class="bloque">
+  <h2 class="bloque-titulo">Unidades <span class="titulo-nota">(calculado: personas × € por persona, con mínimo)</span></h2>
+  {% for u in filas_u %}{{ unidad_bloque(u) }}{% endfor %}
+</section>
+
+<section class="bloque">
+  <h2 class="bloque-titulo">Grupo y Campamento <span class="titulo-nota">(por categoría y trimestre)</span></h2>
+  <ul class="presu-lista">
+    {% for fila in filas_o %}
+    <li class="presu-item" style="--c: {{ colores.get(fila.seccion, color_neutro) }}">
+      <div class="presu-item-cab">
+        <a class="presu-nombre linea-enlace" href="/contexto?sec={{ fila.seccion|urlencode }}&next=/presupuestos"><span class="presu-punto"></span>{{ fila.seccion }}</a>
+        <span class="presu-resumen">
+          {{ fila.gastado|euros }} € <span class="presu-de">de</span>
+          {% if fila.presupuesto %}{{ fila.presupuesto|euros }} €{% else %}<span class="presu-sin">sin presupuesto</span>{% endif %}
+        </span>
+      </div>
+      {{ barra(fila) }}
+      <div class="presu-item-pie">
+        <span class="presu-pct presu-{{ fila.estado }}">
+          {% if fila.estado != 'sin' %}{{ fila.pct|round|int }}% usado · {{ fila.restante|euros }} € restante{% else %}—{% endif %}
+        </span>
+        <a class="btn btn-mini" href="/contexto?sec={{ fila.seccion|urlencode }}&next=/presupuestos">Editar por categoría</a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

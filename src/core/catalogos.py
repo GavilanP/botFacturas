@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 
-from util import normalizar
+from .util import normalizar
 
 
 @dataclass

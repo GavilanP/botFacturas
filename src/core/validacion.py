@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from util import normalizar
+from .util import normalizar
 
 N_CAMPOS = 4
 # Se acepta un dato por línea (cómodo en el móvil) o todo en una línea con «|».
