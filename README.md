@@ -10,6 +10,17 @@ que una **IA local** interpreta. Cada gasto se guarda en una base de datos **SQL
 > (Fase 2, `FACTURAS_ACTIVAS=1`). La versión antigua que escribía en Google Sheets se conserva
 > como referencia, pero ya no es el camino por defecto (ver [`MANUAL.md`](MANUAL.md)).
 
+> **Estado (octubre 2026): proyecto aparcado.** El trabajo más reciente (web de tesorería,
+> ampliación de la base de datos y reorganización a `src/core/`) está en la rama
+> **`wip/web-y-db`**, todavía sin fusionar en `main`. Para retomarlo:
+>
+> 1. `git switch wip/web-y-db`
+> 2. Recrear el entorno: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
+> 3. Recuperar los archivos privados, que **no están en el repositorio** (están en `.gitignore`
+>    y solo existen en el equipo local): `.env`, la clave JSON de la cuenta de servicio de
+>    Google en `config/`, `config/autorizados.yaml`, la carpeta `data/` (base de datos) y
+>    `google-sheets/catalogo.csv`. Si se cambia de equipo, hay que copiarlos antes a mano.
+
 ---
 
 ## Cómo se registra un gasto
